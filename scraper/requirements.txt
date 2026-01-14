@@ -1,0 +1,23 @@
+# Web Scraping
+requests==2.31.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+# Database
+psycopg2-binary==2.9.9
+
+# Scheduling
+schedule==1.2.1
+
+# Configuration
+python-dotenv==1.0.1
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2024.1
+
+# Logging
+colorlog==6.8.2
+
+# HTTP Retry
+urllib3==2.2.0

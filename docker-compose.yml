@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  wkf-postgres:
+    image: postgres:16-alpine
+    container_name: wkf-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - wkf-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wkf-scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: wkf-scraper
+    environment:
+      DB_HOST: wkf-postgres
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      TARGET_URL: ${TARGET_URL}
+      SCRAPING_INTERVAL_SECONDS: ${SCRAPING_INTERVAL_SECONDS}
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FILE: ${LOG_FILE}
+      MIN_DELAY_SECONDS: ${MIN_DELAY_SECONDS}
+      MAX_DELAY_SECONDS: ${MAX_DELAY_SECONDS}
+      MIN_REQUEST_INTERVAL: ${MIN_REQUEST_INTERVAL}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT}
+      MAX_RETRIES: ${MAX_RETRIES}
+      PROXY_ENABLED: ${PROXY_ENABLED}
+      PROXY_HTTP: ${PROXY_HTTP}
+      PROXY_HTTPS: ${PROXY_HTTPS}
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      wkf-postgres:
+        condition: service_healthy
+    networks:
+      - wkf-network
+    restart: always
+
+networks:
+  wkf-network:
+    name: wkf-network
+    driver: bridge

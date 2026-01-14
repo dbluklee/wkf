@@ -53,6 +53,54 @@ services:
       - wkf-network
     restart: always
 
+  wkf-analyzer:
+    build:
+      context: ./analyzer
+      dockerfile: Dockerfile
+    container_name: wkf-analyzer
+    environment:
+      # Database
+      DB_HOST: wkf-postgres
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # Anthropic Claude
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANALYSIS_THRESHOLD_PERCENT: ${ANALYSIS_THRESHOLD_PERCENT}
+      MAX_RECOMMENDATIONS_PER_ARTICLE: ${MAX_RECOMMENDATIONS_PER_ARTICLE}
+
+      # KIS API
+      KIS_APP_KEY: ${KIS_APP_KEY}
+      KIS_APP_SECRET: ${KIS_APP_SECRET}
+      KIS_ACCOUNT_NUMBER: ${KIS_ACCOUNT_NUMBER}
+      KIS_BASE_URL: ${KIS_BASE_URL}
+      KIS_IS_REAL_ACCOUNT: ${KIS_IS_REAL_ACCOUNT}
+
+      # Market
+      MARKET_OPEN_HOUR: ${MARKET_OPEN_HOUR}
+      MARKET_OPEN_MINUTE: ${MARKET_OPEN_MINUTE}
+      MARKET_CLOSE_HOUR: ${MARKET_CLOSE_HOUR}
+      MARKET_CLOSE_MINUTE: ${MARKET_CLOSE_MINUTE}
+      STOCK_HISTORY_DAYS: ${STOCK_HISTORY_DAYS}
+
+      # Retry
+      MAX_API_RETRIES: ${MAX_API_RETRIES}
+      RETRY_BACKOFF_FACTOR: ${RETRY_BACKOFF_FACTOR}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FILE: logs/analyzer.log
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      wkf-postgres:
+        condition: service_healthy
+    networks:
+      - wkf-network
+    restart: always
+
 networks:
   wkf-network:
     name: wkf-network

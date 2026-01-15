@@ -44,6 +44,12 @@ class AnalyzerSettings:
     MAX_API_RETRIES: int
     RETRY_BACKOFF_FACTOR: int
 
+    # Trading Configuration
+    PROFIT_TARGET_PERCENT: float
+    STOP_LOSS_PERCENT: float
+    TRADE_MONITORING_INTERVAL_SECONDS: int
+    TRADE_AMOUNT_PER_STOCK: int
+
     # Logging
     LOG_LEVEL: str
     LOG_FILE: Optional[str] = None
@@ -81,6 +87,12 @@ class AnalyzerSettings:
             # Retry
             MAX_API_RETRIES=int(os.getenv("MAX_API_RETRIES", "3")),
             RETRY_BACKOFF_FACTOR=int(os.getenv("RETRY_BACKOFF_FACTOR", "2")),
+
+            # Trading
+            PROFIT_TARGET_PERCENT=float(os.getenv("PROFIT_TARGET_PERCENT", "2.0")),
+            STOP_LOSS_PERCENT=float(os.getenv("STOP_LOSS_PERCENT", "1.0")),
+            TRADE_MONITORING_INTERVAL_SECONDS=int(os.getenv("TRADE_MONITORING_INTERVAL_SECONDS", "60")),
+            TRADE_AMOUNT_PER_STOCK=int(os.getenv("TRADE_AMOUNT_PER_STOCK", "1000000")),
 
             # Logging
             LOG_LEVEL=os.getenv("LOG_LEVEL", "INFO"),

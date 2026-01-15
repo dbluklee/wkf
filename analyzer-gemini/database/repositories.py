@@ -48,41 +48,6 @@ class NewsRepository:
             return None
 
 
-class DisclosureRepository:
-    """공시 조회 (disclosure-scraper DB)"""
-
-    def __init__(self, db_manager: AnalyzerDatabaseManager):
-        self.db_manager = db_manager
-
-    def get_disclosure_by_id(self, disclosure_id: int) -> Optional[Disclosure]:
-        """
-        ID로 공시 조회
-
-        Args:
-            disclosure_id: 공시 ID
-
-        Returns:
-            Disclosure 객체 또는 None
-        """
-        try:
-            with self.db_manager.get_connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                    cursor.execute("""
-                        SELECT id, rcept_no, corp_name, stock_code, report_nm, rcept_dt,
-                               corp_cls, corp_code, flr_nm, rm, scraped_at
-                        FROM disclosures
-                        WHERE id = %s
-                    """, (disclosure_id,))
-
-                    row = cursor.fetchone()
-                    if row:
-                        return Disclosure(**dict(row))
-                    return None
-        except Exception as e:
-            logger.error(f"Failed to get disclosure {disclosure_id}: {e}")
-            return None
-
-
 class RecommendationRepository:
     """종목 추천 저장소"""
 
@@ -344,6 +309,95 @@ class HoldingsRepository:
             logger.error(f"Failed to get pending holdings: {e}")
             return []
 
+    def get_bought_holdings(self) -> List[dict]:
+        """
+        매수 완료된 보유 종목 조회
+
+        Returns:
+            보유 종목 리스트
+        """
+        try:
+            with self.db_manager.get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("""
+                        SELECT id, stock_code, stock_name, quantity, average_price,
+                               target_price, stop_loss, added_at
+                        FROM stock_holdings
+                        WHERE status = 'bought'
+                        ORDER BY added_at DESC
+                    """)
+                    return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to get bought holdings: {e}")
+            return []
+
+    def update_holding_status(self, holding_id: int, status: str):
+        """
+        보유 종목 상태 업데이트
+
+        Args:
+            holding_id: holding ID
+            status: 새로운 상태 (pending, buying, bought, selling, sold)
+        """
+        try:
+            with self.db_manager.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE stock_holdings
+                        SET status = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (status, holding_id))
+                    logger.debug(f"Updated holding {holding_id} status to {status}")
+        except Exception as e:
+            logger.error(f"Failed to update holding status: {e}")
+            raise
+
+    def update_holding_after_buy(self, holding_id: int, quantity: int, average_price: int):
+        """
+        매수 후 보유 종목 정보 업데이트
+
+        Args:
+            holding_id: holding ID
+            quantity: 매수 수량
+            average_price: 평균 매수가
+        """
+        try:
+            with self.db_manager.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE stock_holdings
+                        SET quantity = %s,
+                            average_price = %s,
+                            status = 'bought',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (quantity, average_price, holding_id))
+                    logger.info(f"Updated holding {holding_id} after buy: {quantity} shares @ {average_price:,}원")
+        except Exception as e:
+            logger.error(f"Failed to update holding after buy: {e}")
+            raise
+
+    def update_holding_after_sell(self, holding_id: int):
+        """
+        매도 후 보유 종목 상태 업데이트
+
+        Args:
+            holding_id: holding ID
+        """
+        try:
+            with self.db_manager.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE stock_holdings
+                        SET status = 'sold',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (holding_id,))
+                    logger.info(f"Updated holding {holding_id} status to sold")
+        except Exception as e:
+            logger.error(f"Failed to update holding after sell: {e}")
+            raise
+
 
 class LogRepository:
     """분석 로그 저장소"""
@@ -380,6 +434,41 @@ class LogRepository:
                     logger.debug(f"Analysis log saved: {status} - {step}")
         except Exception as e:
             logger.error(f"Failed to log analysis: {e}")
+
+
+class DisclosureRepository:
+    """공시 조회 (disclosure-scraper DB)"""
+
+    def __init__(self, db_manager: AnalyzerDatabaseManager):
+        self.db_manager = db_manager
+
+    def get_disclosure_by_id(self, disclosure_id: int) -> Optional[Disclosure]:
+        """
+        ID로 공시 조회
+
+        Args:
+            disclosure_id: 공시 ID
+
+        Returns:
+            Disclosure 객체 또는 None
+        """
+        try:
+            with self.db_manager.get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("""
+                        SELECT id, rcept_no, corp_name, stock_code, report_nm, rcept_dt,
+                               corp_cls, corp_code, flr_nm, rm, scraped_at
+                        FROM disclosures
+                        WHERE id = %s
+                    """, (disclosure_id,))
+
+                    row = cursor.fetchone()
+                    if row:
+                        return Disclosure(**dict(row))
+                    return None
+        except Exception as e:
+            logger.error(f"Failed to get disclosure {disclosure_id}: {e}")
+            return None
 
 
 class Repositories:

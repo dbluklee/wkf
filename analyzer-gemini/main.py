@@ -9,6 +9,7 @@ from database.connection import AnalyzerDatabaseManager
 from database.repositories import Repositories
 from services.gemini_service import GeminiService
 from services.kis_service import KISService
+from services.trade_executor import TradeExecutor
 from services.analyzer_orchestrator import AnalyzerOrchestrator
 from listeners.disclosure_listener import DisclosureListener
 from utils.logger import get_logger
@@ -66,6 +67,10 @@ def main():
             kis_service,
             repos
         )
+
+        logger.info("- Trade Executor (Auto Trading)")
+        trade_executor = TradeExecutor(settings, kis_service, repos)
+        trade_executor.start_monitoring()
 
         # 6. 공시 리스너 시작
         logger.info("=" * 60)

@@ -87,11 +87,33 @@ class OpenDartScraper:
         logger.info("=" * 60)
 
     def run_continuous(self):
-        """지속적인 스크래핑 실행"""
+        """지속적인 스크래핑 실행 (9:00~15:00 사이에만)"""
         logger.info(f"Starting continuous scraping (interval: {self.settings.SCRAPING_INTERVAL_SECONDS}s)")
+        logger.info("Scraping active hours: 09:00 ~ 15:00 (weekdays only)")
 
         while True:
             try:
+                # 현재 시간 체크
+                now = datetime.now()
+                current_time = now.time()
+
+                # 평일(월~금) 체크
+                if now.weekday() >= 5:  # 5=토요일, 6=일요일
+                    logger.debug("Weekend - skipping scraping")
+                    time.sleep(self.settings.SCRAPING_INTERVAL_SECONDS)
+                    continue
+
+                # 시간 체크 (9:00~15:00)
+                from datetime import time as time_type
+                scraping_start = time_type(9, 0)
+                scraping_end = time_type(15, 0)
+
+                if not (scraping_start <= current_time <= scraping_end):
+                    logger.debug(f"Outside scraping hours ({current_time.strftime('%H:%M')}), skipping")
+                    time.sleep(self.settings.SCRAPING_INTERVAL_SECONDS)
+                    continue
+
+                # 스크래핑 실행
                 self.scrape_once()
             except Exception as e:
                 logger.error(f"Scraping error: {e}")

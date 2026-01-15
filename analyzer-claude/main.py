@@ -11,6 +11,7 @@ from services.claude_service import ClaudeService
 from services.kis_service import KISService
 from services.trade_executor import TradeExecutor
 from services.analyzer_orchestrator import AnalyzerOrchestrator
+from services.telegram_service import TelegramService
 from listeners.disclosure_listener import DisclosureListener
 from utils.logger import get_logger
 
@@ -19,6 +20,8 @@ logger = get_logger(__name__)
 
 def main():
     """메인 함수"""
+    telegram_service = None
+
     try:
         logger.info("=" * 60)
         logger.info("Starting WKF Analyzer Service")
@@ -33,13 +36,21 @@ def main():
         logger.info(f"- Max recommendations: {settings.MAX_RECOMMENDATIONS_PER_ARTICLE}")
         logger.info(f"- Stock history days: {settings.STOCK_HISTORY_DAYS}")
 
-        # 2. 데이터베이스 연결
+        # 2. 텔레그램 서비스 초기화
+        logger.info("- Telegram notification service")
+        telegram_service = TelegramService(
+            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            chat_id=settings.TELEGRAM_CHAT_ID,
+            llm_name="claude"
+        )
+
+        # 3. 데이터베이스 연결
         logger.info("Connecting to database...")
         db_manager = AnalyzerDatabaseManager(settings)
         db_manager.wait_for_db()
         logger.info("Database connection established")
 
-        # 3. 마이그레이션 실행
+        # 4. 마이그레이션 실행
         logger.info("Running database migrations...")
         try:
             db_manager.execute_migration('database/migrations/002_create_analyzer_tables.sql')
@@ -48,11 +59,11 @@ def main():
         except Exception as e:
             logger.warning(f"Migration warning (may already exist): {e}")
 
-        # 4. Repository 초기화
+        # 5. Repository 초기화
         logger.info("Initializing repositories...")
         repos = Repositories(db_manager)
 
-        # 5. 서비스 초기화
+        # 6. 서비스 초기화
         logger.info("Initializing services...")
         logger.info("- Claude API service (Anthropic)")
         claude_service = ClaudeService(settings)
@@ -65,14 +76,18 @@ def main():
             settings,
             claude_service,
             kis_service,
-            repos
+            repos,
+            telegram_service
         )
 
         logger.info("- Trade Executor (Auto Trading)")
-        trade_executor = TradeExecutor(settings, kis_service, repos)
+        trade_executor = TradeExecutor(settings, kis_service, repos, telegram_service)
         trade_executor.start_monitoring()
 
-        # 6. 공시 리스너 시작
+        # 7. 서비스 시작 알림
+        telegram_service.notify_service_start()
+
+        # 8. 공시 리스너 시작
         logger.info("=" * 60)
         logger.info("Starting PostgreSQL LISTEN...")
         logger.info("- Channel 'new_disclosure': Disclosures only")
@@ -83,23 +98,21 @@ def main():
         disclosure_listener.start_listening()
 
     except KeyboardInterrupt:
-            logger.info("")
-            logger.info("=" * 60)
-            logger.info("Shutting down gracefully (Ctrl+C received)...")
-            logger.info("=" * 60)
-            sys.exit(0)
-
-    except KeyboardInterrupt:
         logger.info("")
         logger.info("=" * 60)
         logger.info("Shutting down gracefully (Ctrl+C received)...")
         logger.info("=" * 60)
+        if telegram_service:
+            telegram_service.notify_service_stop()
         sys.exit(0)
 
     except Exception as e:
         logger.error("=" * 60)
         logger.error(f"Fatal error: {e}")
         logger.error("=" * 60)
+        if telegram_service:
+            telegram_service.notify_error("Fatal Error", str(e))
+            telegram_service.notify_service_stop()
         sys.exit(1)
 
 

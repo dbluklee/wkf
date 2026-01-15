@@ -8,6 +8,7 @@ from typing import Dict
 from config.settings import AnalyzerSettings
 from services.claude_service import ClaudeService
 from services.kis_service import KISService
+from services.telegram_service import TelegramService
 from database.repositories import Repositories
 from utils.logger import get_logger
 
@@ -22,12 +23,14 @@ class AnalyzerOrchestrator:
         settings: AnalyzerSettings,
         claude_service: ClaudeService,
         kis_service: KISService,
-        repositories: Repositories
+        repositories: Repositories,
+        telegram_service: TelegramService = None
     ):
         self.settings = settings
         self.claude = claude_service
         self.kis = kis_service
         self.repos = repositories
+        self.telegram = telegram_service
 
     def analyze_article(self, article_id: int):
         """
@@ -244,6 +247,15 @@ class AnalyzerOrchestrator:
                     f"✓ Added {corp_name}({stock_code}) to holdings based on disclosure "
                     f"(probability: {probability}%)"
                 )
+
+                # 텔레그램 알림
+                if self.telegram:
+                    self.telegram.notify_holding_added(
+                        stock_code,
+                        corp_name,
+                        probability,
+                        reasoning
+                    )
             else:
                 logger.info(
                     f"✗ {corp_name}({stock_code}) below threshold "
@@ -373,6 +385,15 @@ class AnalyzerOrchestrator:
                     f"✓ Added {stock_name}({stock_code}) to holdings "
                     f"(probability: {probability}%)"
                 )
+
+                # 텔레그램 알림
+                if self.telegram:
+                    self.telegram.notify_holding_added(
+                        stock_code,
+                        stock_name,
+                        probability,
+                        pred_reasoning
+                    )
             else:
                 logger.info(
                     f"✗ {stock_name}({stock_code}) below threshold "

@@ -50,6 +50,10 @@ class AnalyzerSettings:
     TRADE_MONITORING_INTERVAL_SECONDS: int
     TRADE_AMOUNT_PER_STOCK: int
 
+    # Telegram Configuration
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+
     # Logging
     LOG_LEVEL: str
     LOG_FILE: Optional[str] = None
@@ -93,6 +97,10 @@ class AnalyzerSettings:
             STOP_LOSS_PERCENT=float(os.getenv("STOP_LOSS_PERCENT", "1.0")),
             TRADE_MONITORING_INTERVAL_SECONDS=int(os.getenv("TRADE_MONITORING_INTERVAL_SECONDS", "60")),
             TRADE_AMOUNT_PER_STOCK=int(os.getenv("TRADE_AMOUNT_PER_STOCK", "1000000")),
+
+            # Telegram
+            TELEGRAM_BOT_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+            TELEGRAM_CHAT_ID=os.getenv("TELEGRAM_CHAT_ID", ""),
 
             # Logging
             LOG_LEVEL=os.getenv("LOG_LEVEL", "INFO"),

@@ -141,6 +141,10 @@ services:
       MAX_API_RETRIES: ${MAX_API_RETRIES}
       RETRY_BACKOFF_FACTOR: ${RETRY_BACKOFF_FACTOR}
 
+      # Telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+
       # Logging
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_FILE: logs/analyzer-claude.log
@@ -199,6 +203,10 @@ services:
       MAX_API_RETRIES: ${MAX_API_RETRIES}
       RETRY_BACKOFF_FACTOR: ${RETRY_BACKOFF_FACTOR}
 
+      # Telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+
       # Logging
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_FILE: logs/analyzer-gemini.log
@@ -256,6 +264,10 @@ services:
       # Retry
       MAX_API_RETRIES: ${MAX_API_RETRIES}
       RETRY_BACKOFF_FACTOR: ${RETRY_BACKOFF_FACTOR}
+
+      # Telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
 
       # Logging
       LOG_LEVEL: ${LOG_LEVEL}

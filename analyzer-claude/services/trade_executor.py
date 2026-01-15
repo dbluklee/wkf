@@ -17,16 +17,18 @@ logger = get_logger(__name__)
 class TradeExecutor:
     """자동 매매 실행 서비스"""
 
-    def __init__(self, settings, kis_service, repositories):
+    def __init__(self, settings, kis_service, repositories, telegram_service=None):
         """
         Args:
             settings: 설정 객체
             kis_service: KISService 인스턴스
             repositories: Repository 모음
+            telegram_service: TelegramService 인스턴스
         """
         self.settings = settings
         self.kis = kis_service
         self.repos = repositories
+        self.telegram = telegram_service
         self.is_running = False
         self.monitor_thread = None
 
@@ -155,6 +157,10 @@ class TradeExecutor:
                 f"✅ Buy completed: {stock_name}({stock_code}) "
                 f"x {quantity} @ {current_price:,}원 (total: {current_price * quantity:,}원)"
             )
+
+            # 텔레그램 알림
+            if self.telegram:
+                self.telegram.notify_buy_order(stock_code, stock_name, quantity, current_price)
 
         except Exception as e:
             logger.error(f"Buy failed for {stock_code}: {e}")
@@ -285,6 +291,19 @@ class TradeExecutor:
                 f"   Reason: {reason}"
             )
 
+            # 텔레그램 알림
+            if self.telegram:
+                self.telegram.notify_sell_order(
+                    stock_code,
+                    stock_name,
+                    quantity,
+                    average_price,
+                    current_price,
+                    profit_amount,
+                    profit_rate,
+                    reason
+                )
+
         except Exception as e:
             logger.error(f"Sell failed for {stock_code}: {e}")
             # status를 다시 bought로 되돌림 (재시도 가능)
@@ -300,6 +319,10 @@ class TradeExecutor:
             return
 
         logger.info(f"🚨 Force selling {len(bought_holdings)} holdings at 15:20")
+
+        # 텔레그램 알림
+        if self.telegram:
+            self.telegram.notify_force_sell(len(bought_holdings))
 
         for holding in bought_holdings:
             try:

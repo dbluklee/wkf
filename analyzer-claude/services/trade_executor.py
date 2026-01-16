@@ -320,10 +320,6 @@ class TradeExecutor:
 
         logger.info(f"🚨 Force selling {len(bought_holdings)} holdings at 15:20")
 
-        # 텔레그램 알림
-        if self.telegram:
-            self.telegram.notify_force_sell(len(bought_holdings))
-
         for holding in bought_holdings:
             try:
                 stock_code = holding['stock_code']

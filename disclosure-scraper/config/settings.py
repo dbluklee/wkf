@@ -26,6 +26,10 @@ class DisclosureScraperSettings:
     CORP_CLS: str  # 법인구분 (Y: 유가증권, K: 코스닥, N: 코넥스, E: 기타, 빈 값: 전체)
     PAGE_COUNT: int  # 페이지당 조회 건수 (최대 100)
 
+    # Telegram Configuration
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+
     # Logging
     LOG_LEVEL: str
     LOG_FILE: str
@@ -49,6 +53,10 @@ class DisclosureScraperSettings:
             SCRAPING_INTERVAL_SECONDS=int(os.getenv("DISCLOSURE_SCRAPING_INTERVAL_SECONDS", "300")),  # 기본 5분
             CORP_CLS=(os.getenv("DISCLOSURE_CORP_CLS", "") or "").strip(),  # 빈 값: 전체
             PAGE_COUNT=int(os.getenv("DISCLOSURE_PAGE_COUNT", "100")),
+
+            # Telegram
+            TELEGRAM_BOT_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+            TELEGRAM_CHAT_ID=os.getenv("TELEGRAM_CHAT_ID", ""),
 
             # Logging
             LOG_LEVEL=os.getenv("LOG_LEVEL", "INFO"),

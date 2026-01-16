@@ -233,7 +233,9 @@ class AnalyzerOrchestrator:
             )
 
             # 7. threshold 이상이면 holdings에 추가
-            if probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT:
+            will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
+
+            if will_buy:
                 self.repos.holdings_repo.add_holding(
                     analysis_id,
                     stock_code,
@@ -247,19 +249,20 @@ class AnalyzerOrchestrator:
                     f"✓ Added {corp_name}({stock_code}) to holdings based on disclosure "
                     f"(probability: {probability}%)"
                 )
-
-                # 텔레그램 알림
-                if self.telegram:
-                    self.telegram.notify_holding_added(
-                        stock_code,
-                        corp_name,
-                        probability,
-                        reasoning
-                    )
             else:
                 logger.info(
                     f"✗ {corp_name}({stock_code}) below threshold "
                     f"({probability}% < {self.settings.ANALYSIS_THRESHOLD_PERCENT}%)"
+                )
+
+            # 텔레그램 알림 - 분석 결과 (threshold 무관)
+            if self.telegram:
+                self.telegram.notify_analysis_result(
+                    stock_code,
+                    corp_name,
+                    probability,
+                    reasoning,
+                    will_buy
                 )
 
             # 8. 로그 기록
@@ -371,7 +374,9 @@ class AnalyzerOrchestrator:
             )
 
             # 6. threshold 이상이면 holdings에 추가
-            if probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT:
+            will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
+
+            if will_buy:
                 self.repos.holdings_repo.add_holding(
                     analysis_id,
                     stock_code,
@@ -385,19 +390,20 @@ class AnalyzerOrchestrator:
                     f"✓ Added {stock_name}({stock_code}) to holdings "
                     f"(probability: {probability}%)"
                 )
-
-                # 텔레그램 알림
-                if self.telegram:
-                    self.telegram.notify_holding_added(
-                        stock_code,
-                        stock_name,
-                        probability,
-                        pred_reasoning
-                    )
             else:
                 logger.info(
                     f"✗ {stock_name}({stock_code}) below threshold "
                     f"({probability}% < {self.settings.ANALYSIS_THRESHOLD_PERCENT}%)"
+                )
+
+            # 텔레그램 알림 - 분석 결과 (threshold 무관)
+            if self.telegram:
+                self.telegram.notify_analysis_result(
+                    stock_code,
+                    stock_name,
+                    probability,
+                    pred_reasoning,
+                    will_buy
                 )
 
             return True

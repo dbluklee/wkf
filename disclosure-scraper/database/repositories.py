@@ -93,7 +93,7 @@ class DisclosureRepository:
         finally:
             cursor.close()
 
-    def save_disclosures_batch(self, disclosures: List[Dict]) -> Dict[str, int]:
+    def save_disclosures_batch(self, disclosures: List[Dict]) -> Dict:
         """
         공시 데이터 일괄 저장
 
@@ -101,17 +101,26 @@ class DisclosureRepository:
             disclosures: 공시 데이터 리스트
 
         Returns:
-            저장 결과 통계 (new_count, duplicate_count, error_count)
+            저장 결과 통계 및 새로 저장된 공시 목록
         """
         new_count = 0
         duplicate_count = 0
         error_count = 0
+        new_disclosures = []  # 새로 저장된 공시 목록
 
         for disclosure in disclosures:
             try:
                 result = self.save_disclosure(disclosure)
                 if result is not None:
                     new_count += 1
+                    # 새로 저장된 공시 정보 추가
+                    new_disclosures.append({
+                        "id": result,
+                        "corp_name": disclosure.get("corp_name"),
+                        "stock_code": disclosure.get("stock_code", ""),
+                        "report_nm": disclosure.get("report_nm"),
+                        "rcept_dt": disclosure.get("rcept_dt")
+                    })
                 else:
                     duplicate_count += 1
             except Exception as e:
@@ -124,7 +133,8 @@ class DisclosureRepository:
             "new_count": new_count,
             "duplicate_count": duplicate_count,
             "error_count": error_count,
-            "total": len(disclosures)
+            "total": len(disclosures),
+            "new_disclosures": new_disclosures
         }
 
     def get_latest_rcept_dt(self) -> Optional[str]:

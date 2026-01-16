@@ -11,18 +11,20 @@ logger = get_logger(__name__)
 class OpenDartScraper:
     """OpenDART 공시 스크래퍼"""
 
-    def __init__(self, opendart_service, disclosure_repo, scraping_log_repo, settings):
+    def __init__(self, opendart_service, disclosure_repo, scraping_log_repo, settings, telegram_service=None):
         """
         Args:
             opendart_service: OpenDartService 인스턴스
             disclosure_repo: DisclosureRepository 인스턴스
             scraping_log_repo: ScrapingLogRepository 인스턴스
             settings: DisclosureScraperSettings 인스턴스
+            telegram_service: TelegramService 인스턴스 (optional)
         """
         self.opendart = opendart_service
         self.disclosure_repo = disclosure_repo
         self.log_repo = scraping_log_repo
         self.settings = settings
+        self.telegram = telegram_service
 
     def scrape_once(self):
         """공시 1회 스크래핑"""
@@ -62,6 +64,7 @@ class OpenDartScraper:
             new_count = result["new_count"]
             duplicate_count = result["duplicate_count"]
             error_count = result["error_count"]
+            new_disclosures = result.get("new_disclosures", [])
             total_fetched = len(disclosures)
 
             logger.info(f"Scraping completed:")
@@ -69,6 +72,16 @@ class OpenDartScraper:
             logger.info(f"  - New: {new_count}")
             logger.info(f"  - Duplicates: {duplicate_count}")
             logger.info(f"  - Errors: {error_count}")
+
+            # 새로 저장된 공시에 대해 텔레그램 알림 전송
+            if self.telegram and new_disclosures:
+                for disclosure in new_disclosures:
+                    self.telegram.notify_disclosure_collected(
+                        corp_name=disclosure["corp_name"],
+                        stock_code=disclosure["stock_code"],
+                        report_nm=disclosure["report_nm"],
+                        rcept_dt=disclosure["rcept_dt"]
+                    )
 
             # 스크래핑 로그 저장
             execution_time = time.time() - start_time

@@ -8,6 +8,7 @@ from typing import Dict
 from config.settings import AnalyzerSettings
 from services.gemini_service import GeminiService
 from services.kis_service import KISService
+from services.telegram_service import TelegramService
 from database.repositories import Repositories
 from utils.logger import get_logger
 
@@ -22,12 +23,14 @@ class AnalyzerOrchestrator:
         settings: AnalyzerSettings,
         gemini_service: GeminiService,
         kis_service: KISService,
-        repositories: Repositories
+        repositories: Repositories,
+        telegram_service: TelegramService = None
     ):
         self.settings = settings
         self.gemini = gemini_service
         self.kis = kis_service
         self.repos = repositories
+        self.telegram = telegram_service
 
     def analyze_article(self, article_id: int):
         """
@@ -201,7 +204,9 @@ class AnalyzerOrchestrator:
             )
 
             # 6. threshold 이상이면 holdings에 추가
-            if probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT:
+            will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
+
+            if will_buy:
                 self.repos.holdings_repo.add_holding(
                     analysis_id,
                     stock_code,
@@ -219,6 +224,16 @@ class AnalyzerOrchestrator:
                 logger.info(
                     f"✗ {stock_name}({stock_code}) below threshold "
                     f"({probability}% < {self.settings.ANALYSIS_THRESHOLD_PERCENT}%)"
+                )
+
+            # 텔레그램 알림 - 분석 결과 (threshold 무관)
+            if self.telegram:
+                self.telegram.notify_analysis_result(
+                    stock_code,
+                    stock_name,
+                    probability,
+                    pred_reasoning,
+                    will_buy
                 )
 
             return True
@@ -343,7 +358,9 @@ class AnalyzerOrchestrator:
             )
 
             # 7. threshold 이상이면 holdings에 추가
-            if probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT:
+            will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
+
+            if will_buy:
                 self.repos.holdings_repo.add_holding(
                     analysis_id,
                     stock_code,
@@ -361,6 +378,16 @@ class AnalyzerOrchestrator:
                 logger.info(
                     f"✗ {corp_name}({stock_code}) below threshold "
                     f"({probability}% < {self.settings.ANALYSIS_THRESHOLD_PERCENT}%)"
+                )
+
+            # 텔레그램 알림 - 분석 결과 (threshold 무관)
+            if self.telegram:
+                self.telegram.notify_analysis_result(
+                    stock_code,
+                    corp_name,
+                    probability,
+                    reasoning,
+                    will_buy
                 )
 
             # 8. 로그 기록

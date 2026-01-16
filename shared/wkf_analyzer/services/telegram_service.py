@@ -16,7 +16,7 @@ class TelegramService:
         Args:
             bot_token: 텔레그램 봇 토큰
             chat_id: 텔레그램 채팅방 ID
-            llm_name: LLM 이름 (claude, gemini, openai)
+            llm_name: LLM 이름 (claude, gemini, openai) 또는 서비스명
         """
         self.bot_token = bot_token
         self.chat_id = chat_id
@@ -62,46 +62,97 @@ class TelegramService:
             logger.error(f"Failed to send Telegram message: {e}")
             return False
 
+    # =========================================================================
+    # 서비스 시작/종료 알림
+    # =========================================================================
+
     def notify_service_start(self):
         """서비스 시작 알림"""
         message = f"""
-🚀 *{self.llm_name.upper()} Analyzer 시작*
+🚀 *{self.llm_name.upper()} 서비스 시작*
 
-장 시작 - 자동 매매 시스템 가동
-• 공시 모니터링 시작
-• 자동 매매 준비 완료
+자동 매매 시스템 가동 완료
 """
         self.send_message(message.strip())
 
     def notify_service_stop(self):
         """서비스 종료 알림"""
         message = f"""
-🛑 *{self.llm_name.upper()} Analyzer 종료*
+🛑 *{self.llm_name.upper()} 서비스 종료*
 
 서비스가 정상적으로 종료되었습니다.
 """
         self.send_message(message.strip())
 
-    def notify_holding_added(self, stock_code: str, stock_name: str, probability: int, reasoning: str):
+    # =========================================================================
+    # 공시 수집 알림 (disclosure-scraper에서 사용)
+    # =========================================================================
+
+    def notify_disclosure_collected(
+        self,
+        corp_name: str,
+        stock_code: str,
+        report_nm: str,
+        rcept_dt: str
+    ):
         """
-        Holdings 추가 알림
+        공시 수집 알림
+
+        Args:
+            corp_name: 회사명
+            stock_code: 종목코드
+            report_nm: 공시 제목
+            rcept_dt: 접수일자
+        """
+        # 종목코드가 없으면 비상장사
+        stock_info = f" ({stock_code})" if stock_code else " (비상장)"
+
+        message = f"""
+📋 *새 공시 수집*
+
+*{corp_name}*{stock_info}
+• 공시: {report_nm[:80]}{'...' if len(report_nm) > 80 else ''}
+• 접수일: {rcept_dt}
+"""
+        self.send_message(message.strip())
+
+    # =========================================================================
+    # LLM 분석 결과 알림 (analyzer에서 사용)
+    # =========================================================================
+
+    def notify_analysis_result(
+        self,
+        stock_code: str,
+        stock_name: str,
+        probability: int,
+        reasoning: str,
+        will_buy: bool
+    ):
+        """
+        LLM 매수확률 분석 결과 알림
 
         Args:
             stock_code: 종목코드
             stock_name: 종목명
             probability: 상승 확률 (%)
-            reasoning: 추천 이유
+            reasoning: 분석 이유
+            will_buy: 매수 여부 (threshold 이상인지)
         """
+        buy_status = "✅ 매수 예정" if will_buy else "❌ 매수 안함"
+
         message = f"""
-📊 *{self.llm_name.upper()}: 새 종목 추가*
+🤖 *{self.llm_name.upper()} 분석 완료*
 
 *{stock_name}* ({stock_code})
-• 상승 확률: *{probability}%*
+• 매수확률: *{probability}%*
+• 판단: {buy_status}
 • 이유: {reasoning[:100]}{'...' if len(reasoning) > 100 else ''}
-
-매수 대기 중...
 """
         self.send_message(message.strip())
+
+    # =========================================================================
+    # 매수/매도 알림
+    # =========================================================================
 
     def notify_buy_order(self, stock_code: str, stock_name: str, quantity: int, price: int):
         """
@@ -160,35 +211,5 @@ class TelegramService:
 • 매도가: {sell_price:,}원
 • 손익: *{profit_sign}{profit_loss:,}원* ({profit_sign}{profit_rate:.2f}%)
 • 사유: {reason}
-"""
-        self.send_message(message.strip())
-
-    def notify_force_sell(self, total_holdings: int):
-        """
-        15:20 강제 매도 알림
-
-        Args:
-            total_holdings: 강제 매도할 종목 수
-        """
-        message = f"""
-⏰ *{self.llm_name.upper()}: 장 마감 강제 매도*
-
-15:20 도달 - {total_holdings}개 종목 강제 매도 중...
-"""
-        self.send_message(message.strip())
-
-    def notify_error(self, error_type: str, error_message: str):
-        """
-        에러 알림
-
-        Args:
-            error_type: 에러 타입
-            error_message: 에러 메시지
-        """
-        message = f"""
-⚠️ *{self.llm_name.upper()}: 에러 발생*
-
-• 타입: {error_type}
-• 메시지: {error_message[:200]}
 """
         self.send_message(message.strip())

@@ -83,6 +83,10 @@ services:
       DISCLOSURE_CORP_CLS: ${DISCLOSURE_CORP_CLS}
       DISCLOSURE_PAGE_COUNT: ${DISCLOSURE_PAGE_COUNT}
 
+      # Telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+
       # Logging
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_FILE: logs/disclosure-scraper.log

@@ -6,6 +6,7 @@ from config.settings import DisclosureScraperSettings
 from database.connection import DisclosureDatabaseManager
 from database.repositories import DisclosureRepository, ScrapingLogRepository
 from services.opendart_service import OpenDartService
+from services.telegram_service import TelegramService
 from scrapers.opendart_scraper import OpenDartScraper
 from utils.logger import get_logger
 
@@ -14,6 +15,8 @@ logger = get_logger(__name__)
 
 def main():
     """메인 함수"""
+    telegram_service = None
+
     try:
         logger.info("=" * 60)
         logger.info("Starting WKF Disclosure Scraper Service")
@@ -29,13 +32,21 @@ def main():
         logger.info(f"- Corp class: {settings.CORP_CLS or 'All'}")
         logger.info(f"- Page count: {settings.PAGE_COUNT}")
 
-        # 2. 데이터베이스 연결
+        # 2. 텔레그램 서비스 초기화
+        logger.info("- Telegram notification service")
+        telegram_service = TelegramService(
+            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            chat_id=settings.TELEGRAM_CHAT_ID,
+            llm_name="disclosure-scraper"
+        )
+
+        # 3. 데이터베이스 연결
         logger.info("Connecting to database...")
         db_manager = DisclosureDatabaseManager(settings)
         db_manager.wait_for_db()
         logger.info("Database connection established")
 
-        # 3. 마이그레이션 실행
+        # 4. 마이그레이션 실행
         logger.info("Running database migrations...")
         try:
             db_manager.execute_migration('database/migrations/001_create_disclosure_tables.sql')
@@ -44,26 +55,30 @@ def main():
         except Exception as e:
             logger.warning(f"Migration warning (may already exist): {e}")
 
-        # 4. Repository 초기화
+        # 5. Repository 초기화
         logger.info("Initializing repositories...")
         disclosure_repo = DisclosureRepository(db_manager)
         scraping_log_repo = ScrapingLogRepository(db_manager)
 
-        # 5. 서비스 초기화
+        # 6. 서비스 초기화
         logger.info("Initializing services...")
         opendart_service = OpenDartService(
             api_key=settings.OPENDART_API_KEY,
             base_url=settings.OPENDART_BASE_URL
         )
 
-        # 6. 스크래퍼 초기화 및 실행
+        # 7. 스크래퍼 초기화 및 실행
         logger.info("Initializing scraper...")
         scraper = OpenDartScraper(
             opendart_service,
             disclosure_repo,
             scraping_log_repo,
-            settings
+            settings,
+            telegram_service
         )
+
+        # 8. 서비스 시작 알림
+        telegram_service.notify_service_start()
 
         logger.info("=" * 60)
         logger.info("Starting continuous scraping...")
@@ -77,12 +92,16 @@ def main():
         logger.info("=" * 60)
         logger.info("Shutting down gracefully (Ctrl+C received)...")
         logger.info("=" * 60)
+        if telegram_service:
+            telegram_service.notify_service_stop()
         sys.exit(0)
 
     except Exception as e:
         logger.error("=" * 60)
         logger.error(f"Fatal error: {e}")
         logger.error("=" * 60)
+        if telegram_service:
+            telegram_service.notify_service_stop()
         sys.exit(1)
 
 

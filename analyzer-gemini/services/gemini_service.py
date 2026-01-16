@@ -18,8 +18,8 @@ class GeminiService(BaseLLMService):
 
     def __init__(self, settings):
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
-        self.model_version = 'gemini-2.0-flash-exp'
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model_version = 'gemini-1.5-flash'
         self.max_recommendations = settings.MAX_RECOMMENDATIONS_PER_ARTICLE
 
         # Generation config

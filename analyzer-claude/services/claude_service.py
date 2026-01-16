@@ -19,7 +19,7 @@ class ClaudeService(BaseLLMService):
 
     def __init__(self, settings):
         self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self.model = "claude-sonnet-4-5-20250929"
+        self.model = "claude-3-5-haiku-20241022"
         self.max_recommendations = settings.MAX_RECOMMENDATIONS_PER_ARTICLE
 
     def get_model_name(self) -> str:

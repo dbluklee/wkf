@@ -17,7 +17,7 @@ class OpenAIService(BaseLLMService):
 
     def __init__(self, settings):
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = "gpt-4-turbo-preview"
+        self.model = "gpt-4o-mini"
         self.max_recommendations = settings.MAX_RECOMMENDATIONS_PER_ARTICLE
 
     def get_model_name(self) -> str:

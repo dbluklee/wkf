@@ -472,7 +472,7 @@ class DisclosureRepository:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                     cursor.execute("""
                         SELECT id, rcept_no, corp_name, stock_code, report_nm, rcept_dt,
-                               corp_cls, corp_code, flr_nm, rm, scraped_at
+                               corp_cls, corp_code, flr_nm, rm, scraped_at, document_content
                         FROM disclosures
                         WHERE id = %s
                     """, (disclosure_id,))

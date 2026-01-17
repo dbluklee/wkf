@@ -6,7 +6,7 @@ from config.settings import DisclosureScraperSettings
 from database.connection import DisclosureDatabaseManager
 from database.repositories import DisclosureRepository, ScrapingLogRepository
 from services.opendart_service import OpenDartService
-from services.telegram_service import TelegramService
+from wkf_analyzer.services.telegram_service import TelegramService
 from scrapers.opendart_scraper import OpenDartScraper
 from utils.logger import get_logger
 

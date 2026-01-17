@@ -8,7 +8,7 @@ from typing import Dict
 from config.settings import AnalyzerSettings
 from services.gemini_service import GeminiService
 from services.kis_service import KISService
-from services.telegram_service import TelegramService
+from wkf_analyzer.services.telegram_service import TelegramService
 from database.repositories import Repositories
 from utils.logger import get_logger
 

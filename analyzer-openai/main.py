@@ -11,7 +11,7 @@ from services.openai_service import OpenAIService
 from services.kis_service import KISService
 from services.trade_executor import TradeExecutor
 from services.analyzer_orchestrator import AnalyzerOrchestrator
-from services.telegram_service import TelegramService
+from wkf_analyzer.services.telegram_service import TelegramService
 from listeners.disclosure_listener import DisclosureListener
 from utils.logger import get_logger
 

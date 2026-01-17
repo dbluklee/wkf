@@ -31,8 +31,8 @@ class DisclosureScraperSettings:
     TELEGRAM_CHAT_ID: str = ""
 
     # Logging
-    LOG_LEVEL: str
-    LOG_FILE: str
+    LOG_LEVEL: str = "INFO"
+    LOG_FILE: str = "logs/disclosure-scraper.log"
 
     @classmethod
     def from_env(cls) -> "DisclosureScraperSettings":

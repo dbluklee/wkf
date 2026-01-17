@@ -55,7 +55,7 @@ class AnalyzerSettings:
     TELEGRAM_CHAT_ID: str = ""
 
     # Logging
-    LOG_LEVEL: str
+    LOG_LEVEL: str = "INFO"
     LOG_FILE: Optional[str] = None
 
     @classmethod

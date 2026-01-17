@@ -23,6 +23,7 @@ class AnalyzerSettings:
 
     # Google Gemini Configuration
     GEMINI_API_KEY: str
+    SOURCE_TYPE: str  # 'news' or 'disclosure'
     ANALYSIS_THRESHOLD_PERCENT: int
     MAX_RECOMMENDATIONS_PER_ARTICLE: int
 
@@ -71,6 +72,7 @@ class AnalyzerSettings:
 
             # Google Gemini
             GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", ""),
+            SOURCE_TYPE=os.getenv("SOURCE_TYPE", "disclosure"),
             ANALYSIS_THRESHOLD_PERCENT=int(os.getenv("ANALYSIS_THRESHOLD_PERCENT", "70")),
             MAX_RECOMMENDATIONS_PER_ARTICLE=int(os.getenv("MAX_RECOMMENDATIONS_PER_ARTICLE", "3")),
 
@@ -117,6 +119,9 @@ class AnalyzerSettings:
 
         if not self.DB_PASSWORD:
             raise ValueError("DB_PASSWORD is required")
+
+        if self.SOURCE_TYPE not in ['news', 'disclosure']:
+            raise ValueError("SOURCE_TYPE must be 'news' or 'disclosure'")
 
         if not (0 <= self.ANALYSIS_THRESHOLD_PERCENT <= 100):
             raise ValueError("ANALYSIS_THRESHOLD_PERCENT must be between 0 and 100")

@@ -6,7 +6,7 @@ import time
 from typing import Dict
 
 from config.settings import AnalyzerSettings
-from services.openai_service import OpenAIService
+from services.claude_service import ClaudeService
 from services.kis_service import KISService
 from wkf_analyzer.services.telegram_service import TelegramService
 from database.repositories import Repositories
@@ -21,13 +21,13 @@ class AnalyzerOrchestrator:
     def __init__(
         self,
         settings: AnalyzerSettings,
-        openai_service: OpenAIService,
+        claude_service: ClaudeService,
         kis_service: KISService,
         repositories: Repositories,
         telegram_service: TelegramService = None
     ):
         self.settings = settings
-        self.openai = openai_service
+        self.claude = claude_service
         self.kis = kis_service
         self.repos = repositories
         self.telegram = telegram_service
@@ -41,10 +41,10 @@ class AnalyzerOrchestrator:
 
         워크플로우:
             1. 기사 조회
-            2. OpenAI Phase 1: 종목 추천
+            2. Claude Phase 1: 종목 추천
             3. 추천 종목별로:
                - KIS API: 주가 데이터 조회
-               - OpenAI Phase 2: 상승 확률 예측
+               - Claude Phase 2: 상승 확률 예측
                - threshold 이상이면 holdings에 추가
             4. 로그 기록
         """
@@ -59,14 +59,14 @@ class AnalyzerOrchestrator:
 
             logger.info(f"Starting analysis for article {article_id}: {article.title[:50]}...")
 
-            # 2. Phase 1: OpenAI에서 종목 추천
+            # 2. Phase 1: Claude에서 종목 추천
             try:
-                recommendations = self.openai.recommend_stocks(
+                recommendations = self.claude.recommend_stocks(
                     article.title,
                     article.content
                 )
             except Exception as e:
-                logger.error(f"OpenAI recommendation failed: {e}")
+                logger.error(f"Claude recommendation failed: {e}")
                 self.repos.log_repo.log_analysis(
                     article_id, 'failed', 'recommendation',
                     str(e), time.time() - start_time
@@ -81,13 +81,13 @@ class AnalyzerOrchestrator:
                 )
                 return
 
-            logger.info(f"OpenAI recommended {len(recommendations)} stocks")
+            logger.info(f"Claude recommended {len(recommendations)} stocks")
 
             # 3. 각 추천 종목에 대해 분석
             success_count = 0
             for rec in recommendations:
                 try:
-                    if self._analyze_stock(article, rec):
+                    if self._analyze_stock(article, rec, source_type='news'):
                         success_count += 1
                 except Exception as e:
                     logger.error(f"Failed to analyze {rec.get('stock_code', 'unknown')}: {e}")
@@ -114,134 +114,6 @@ class AnalyzerOrchestrator:
                 str(e), time.time() - start_time
             )
 
-    def _analyze_stock(self, article, recommendation: Dict) -> bool:
-        """
-        개별 종목 분석
-
-        Args:
-            article: NewsArticle 객체
-            recommendation: 추천 정보 dict
-
-        Returns:
-            성공 여부
-        """
-        stock_code = recommendation.get('stock_code')
-        stock_name = recommendation.get('stock_name')
-        reasoning = recommendation.get('reasoning', '')
-
-        logger.info(f"Analyzing {stock_name}({stock_code})...")
-
-        try:
-            # 1. 추천 저장
-            rec_id = self.repos.recommendation_repo.save_recommendation(
-                article.id, stock_code, stock_name, reasoning,
-                llm_model=self.openai.get_model_name(),
-                llm_version=self.openai.get_model_version()
-            )
-
-            # 2. KIS API로 주가 데이터 조회
-            try:
-                daily_prices = self.kis.fetch_daily_prices(
-                    stock_code,
-                    days=self.settings.STOCK_HISTORY_DAYS
-                )
-                intraday_prices = self.kis.fetch_intraday_prices(stock_code)
-
-                logger.info(
-                    f"Fetched prices for {stock_code}: "
-                    f"{len(daily_prices)} daily, {len(intraday_prices)} intraday"
-                )
-            except Exception as e:
-                logger.error(f"Failed to fetch prices for {stock_code}: {e}")
-                # 주가 조회 실패 시 분석 중단
-                return False
-
-            # 주가 데이터가 없으면 분석 불가
-            if not daily_prices:
-                logger.warning(f"No price data available for {stock_code}, skipping analysis")
-                return False
-
-            # 3. 주가 데이터 저장
-            self.repos.price_repo.save_prices(stock_code, daily_prices, 'daily')
-            if intraday_prices:
-                self.repos.price_repo.save_prices(stock_code, intraday_prices, 'intraday')
-
-            # 4. Phase 2: OpenAI로 상승 확률 예측
-            try:
-                prediction = self.openai.predict_price_increase(
-                    article.title,
-                    article.content,
-                    stock_code,
-                    stock_name,
-                    daily_prices,
-                    intraday_prices
-                )
-            except Exception as e:
-                logger.error(f"OpenAI prediction failed for {stock_code}: {e}")
-                return False
-
-            probability = prediction.get('probability', 0)
-            pred_reasoning = prediction.get('reasoning', '')
-            target_price = prediction.get('target_price')
-            stop_loss = prediction.get('stop_loss')
-
-            logger.info(
-                f"Prediction for {stock_name}({stock_code}): "
-                f"{probability}% probability"
-            )
-
-            # 5. 분석 결과 저장
-            analysis_id = self.repos.analysis_repo.save_analysis(
-                article.id,
-                rec_id,
-                stock_code,
-                probability,
-                pred_reasoning,
-                target_price,
-                stop_loss,
-                llm_model=self.openai.get_model_name(),
-                llm_version=self.openai.get_model_version()
-            )
-
-            # 6. threshold 이상이면 holdings에 추가
-            will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
-
-            if will_buy:
-                self.repos.holdings_repo.add_holding(
-                    analysis_id,
-                    stock_code,
-                    stock_name,
-                    target_price,
-                    stop_loss,
-                    llm_model=self.openai.get_model_name(),
-                    llm_version=self.openai.get_model_version()
-                )
-                logger.info(
-                    f"✓ Added {stock_name}({stock_code}) to holdings "
-                    f"(probability: {probability}%)"
-                )
-            else:
-                logger.info(
-                    f"✗ {stock_name}({stock_code}) below threshold "
-                    f"({probability}% < {self.settings.ANALYSIS_THRESHOLD_PERCENT}%)"
-                )
-
-            # 텔레그램 알림 - 분석 결과 (threshold 무관)
-            if self.telegram:
-                self.telegram.notify_analysis_result(
-                    stock_code,
-                    stock_name,
-                    probability,
-                    pred_reasoning,
-                    will_buy
-                )
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error analyzing {stock_code}: {e}")
-            return False
-
     def analyze_disclosure(self, disclosure_id: int):
         """
         새 공시에 대한 분석 워크플로우 실행
@@ -253,7 +125,7 @@ class AnalyzerOrchestrator:
             1. 공시 조회
             2. 종목코드가 있으면:
                - KIS API: 주가 데이터 조회
-               - OpenAI: 공시 분석 및 매수 여부 판단
+               - Claude: 공시 분석 및 매수 여부 판단
                - threshold 이상이면 holdings에 추가
             3. 로그 기록
         """
@@ -306,9 +178,9 @@ class AnalyzerOrchestrator:
             if intraday_prices:
                 self.repos.price_repo.save_prices(stock_code, intraday_prices, 'intraday')
 
-            # 5. OpenAI로 공시 분석
+            # 5. Claude로 공시 분석
             try:
-                analysis = self.openai.analyze_disclosure(
+                analysis = self.claude.analyze_disclosure(
                     corp_name,
                     stock_code,
                     disclosure.report_nm,
@@ -317,7 +189,7 @@ class AnalyzerOrchestrator:
                     intraday_prices
                 )
             except Exception as e:
-                logger.error(f"OpenAI disclosure analysis failed for {stock_code}: {e}")
+                logger.error(f"Claude disclosure analysis failed for {stock_code}: {e}")
                 self.repos.log_repo.log_analysis(
                     None, 'failed', 'analysis',
                     str(e), time.time() - start_time
@@ -335,26 +207,28 @@ class AnalyzerOrchestrator:
             )
 
             # 6. 분석 결과 저장 (disclosure는 recommendation 과정이 없으므로 직접 analysis에 저장)
-            # 먼저 더미 recommendation 생성 (공시 기반)
+            # 먼저 recommendation 생성 (공시 기반)
             rec_id = self.repos.recommendation_repo.save_recommendation(
-                disclosure_id,  # article_id 대신 disclosure_id 사용
                 stock_code,
                 corp_name,
                 f"공시: {disclosure.report_nm}",
-                llm_model=self.openai.get_model_name(),
-                llm_version=self.openai.get_model_version()
+                llm_model=self.claude.get_model_name(),
+                llm_version=self.claude.get_model_version(),
+                disclosure_id=disclosure_id,
+                source_type='disclosure'
             )
 
             analysis_id = self.repos.analysis_repo.save_analysis(
-                disclosure_id,  # article_id 대신 disclosure_id 사용
                 rec_id,
                 stock_code,
                 probability,
                 reasoning,
                 target_price,
                 stop_loss,
-                llm_model=self.openai.get_model_name(),
-                llm_version=self.openai.get_model_version()
+                llm_model=self.claude.get_model_name(),
+                llm_version=self.claude.get_model_version(),
+                disclosure_id=disclosure_id,
+                source_type='disclosure'
             )
 
             # 7. threshold 이상이면 holdings에 추가
@@ -367,8 +241,9 @@ class AnalyzerOrchestrator:
                     corp_name,
                     target_price,
                     stop_loss,
-                    llm_model=self.openai.get_model_name(),
-                    llm_version=self.openai.get_model_version()
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    source_type='disclosure'
                 )
                 logger.info(
                     f"✓ Added {corp_name}({stock_code}) to holdings based on disclosure "
@@ -408,3 +283,162 @@ class AnalyzerOrchestrator:
                 disclosure_id, 'failed', None,
                 str(e), time.time() - start_time
             )
+
+    def _analyze_stock(self, source_obj, recommendation: Dict, source_type: str = None) -> bool:
+        """
+        개별 종목 분석
+
+        Args:
+            source_obj: NewsArticle 또는 Disclosure 객체
+            recommendation: 추천 정보 dict
+            source_type: 데이터 소스 타입 ('news' 또는 'disclosure')
+
+        Returns:
+            성공 여부
+        """
+        if source_type is None:
+            source_type = self.settings.SOURCE_TYPE
+
+        stock_code = recommendation.get('stock_code')
+        stock_name = recommendation.get('stock_name')
+        reasoning = recommendation.get('reasoning', '')
+
+        logger.info(f"Analyzing {stock_name}({stock_code}) [source: {source_type}]...")
+
+        try:
+            # 1. 추천 저장
+            if source_type == 'news':
+                rec_id = self.repos.recommendation_repo.save_recommendation(
+                    stock_code, stock_name, reasoning,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    article_id=source_obj.id,
+                    source_type='news'
+                )
+            else:  # disclosure
+                rec_id = self.repos.recommendation_repo.save_recommendation(
+                    stock_code, stock_name, reasoning,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    disclosure_id=source_obj.id,
+                    source_type='disclosure'
+                )
+
+            # 2. KIS API로 주가 데이터 조회
+            try:
+                daily_prices = self.kis.fetch_daily_prices(
+                    stock_code,
+                    days=self.settings.STOCK_HISTORY_DAYS
+                )
+                intraday_prices = self.kis.fetch_intraday_prices(stock_code)
+
+                logger.info(
+                    f"Fetched prices for {stock_code}: "
+                    f"{len(daily_prices)} daily, {len(intraday_prices)} intraday"
+                )
+            except Exception as e:
+                logger.error(f"Failed to fetch prices for {stock_code}: {e}")
+                # 주가 조회 실패 시 분석 중단
+                return False
+
+            # 주가 데이터가 없으면 분석 불가
+            if not daily_prices:
+                logger.warning(f"No price data available for {stock_code}, skipping analysis")
+                return False
+
+            # 3. 주가 데이터 저장
+            self.repos.price_repo.save_prices(stock_code, daily_prices, 'daily')
+            if intraday_prices:
+                self.repos.price_repo.save_prices(stock_code, intraday_prices, 'intraday')
+
+            # 4. Phase 2: Claude로 상승 확률 예측
+            try:
+                prediction = self.claude.predict_price_increase(
+                    article.title,
+                    article.content,
+                    stock_code,
+                    stock_name,
+                    daily_prices,
+                    intraday_prices
+                )
+            except Exception as e:
+                logger.error(f"Claude prediction failed for {stock_code}: {e}")
+                return False
+
+            probability = prediction.get('probability', 0)
+            pred_reasoning = prediction.get('reasoning', '')
+            target_price = prediction.get('target_price')
+            stop_loss = prediction.get('stop_loss')
+
+            logger.info(
+                f"Prediction for {stock_name}({stock_code}): "
+                f"{probability}% probability"
+            )
+
+            # 5. 분석 결과 저장
+            if source_type == 'news':
+                analysis_id = self.repos.analysis_repo.save_analysis(
+                    rec_id,
+                    stock_code,
+                    probability,
+                    pred_reasoning,
+                    target_price,
+                    stop_loss,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    article_id=source_obj.id,
+                    source_type='news'
+                )
+            else:  # disclosure
+                analysis_id = self.repos.analysis_repo.save_analysis(
+                    rec_id,
+                    stock_code,
+                    probability,
+                    pred_reasoning,
+                    target_price,
+                    stop_loss,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    disclosure_id=source_obj.id,
+                    source_type='disclosure'
+                )
+
+            # 6. threshold 이상이면 holdings에 추가
+            will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
+
+            if will_buy:
+                self.repos.holdings_repo.add_holding(
+                    analysis_id,
+                    stock_code,
+                    stock_name,
+                    target_price,
+                    stop_loss,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    source_type=source_type
+                )
+                logger.info(
+                    f"✓ Added {stock_name}({stock_code}) to holdings "
+                    f"(probability: {probability}%)"
+                )
+            else:
+                logger.info(
+                    f"✗ {stock_name}({stock_code}) below threshold "
+                    f"({probability}% < {self.settings.ANALYSIS_THRESHOLD_PERCENT}%)"
+                )
+
+            # 텔레그램 알림 - 분석 결과 (threshold 무관)
+            if self.telegram:
+                self.telegram.notify_analysis_result(
+                    stock_code,
+                    stock_name,
+                    probability,
+                    pred_reasoning,
+                    will_buy
+                )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error analyzing {stock_code}: {e}")
+            return False

@@ -87,7 +87,7 @@ class AnalyzerOrchestrator:
             success_count = 0
             for rec in recommendations:
                 try:
-                    if self._analyze_stock(article, rec):
+                    if self._analyze_stock(article, rec, source_type='news'):
                         success_count += 1
                 except Exception as e:
                     logger.error(f"Failed to analyze {rec.get('stock_code', 'unknown')}: {e}")
@@ -207,21 +207,18 @@ class AnalyzerOrchestrator:
             )
 
             # 6. 분석 결과 저장 (disclosure는 recommendation 과정이 없으므로 직접 analysis에 저장)
-            # 편의상 disclosure_id를 article_id 자리에 사용 (또는 별도 테이블 생성 가능)
-            # 여기서는 간단히 article_id를 NULL로, recommendation_id도 생성
-
-            # 먼저 더미 recommendation 생성 (공시 기반)
+            # 먼저 recommendation 생성 (공시 기반)
             rec_id = self.repos.recommendation_repo.save_recommendation(
-                disclosure_id,  # article_id 대신 disclosure_id 사용
                 stock_code,
                 corp_name,
                 f"공시: {disclosure.report_nm}",
                 llm_model=self.claude.get_model_name(),
-                llm_version=self.claude.get_model_version()
+                llm_version=self.claude.get_model_version(),
+                disclosure_id=disclosure_id,
+                source_type='disclosure'
             )
 
             analysis_id = self.repos.analysis_repo.save_analysis(
-                disclosure_id,  # article_id 대신 disclosure_id 사용
                 rec_id,
                 stock_code,
                 probability,
@@ -229,7 +226,9 @@ class AnalyzerOrchestrator:
                 target_price,
                 stop_loss,
                 llm_model=self.claude.get_model_name(),
-                llm_version=self.claude.get_model_version()
+                llm_version=self.claude.get_model_version(),
+                disclosure_id=disclosure_id,
+                source_type='disclosure'
             )
 
             # 7. threshold 이상이면 holdings에 추가
@@ -243,7 +242,8 @@ class AnalyzerOrchestrator:
                     target_price,
                     stop_loss,
                     llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version()
+                    llm_version=self.claude.get_model_version(),
+                    source_type='disclosure'
                 )
                 logger.info(
                     f"✓ Added {corp_name}({stock_code}) to holdings based on disclosure "
@@ -284,30 +284,45 @@ class AnalyzerOrchestrator:
                 str(e), time.time() - start_time
             )
 
-    def _analyze_stock(self, article, recommendation: Dict) -> bool:
+    def _analyze_stock(self, source_obj, recommendation: Dict, source_type: str = None) -> bool:
         """
         개별 종목 분석
 
         Args:
-            article: NewsArticle 객체
+            source_obj: NewsArticle 또는 Disclosure 객체
             recommendation: 추천 정보 dict
+            source_type: 데이터 소스 타입 ('news' 또는 'disclosure')
 
         Returns:
             성공 여부
         """
+        if source_type is None:
+            source_type = self.settings.SOURCE_TYPE
+
         stock_code = recommendation.get('stock_code')
         stock_name = recommendation.get('stock_name')
         reasoning = recommendation.get('reasoning', '')
 
-        logger.info(f"Analyzing {stock_name}({stock_code})...")
+        logger.info(f"Analyzing {stock_name}({stock_code}) [source: {source_type}]...")
 
         try:
             # 1. 추천 저장
-            rec_id = self.repos.recommendation_repo.save_recommendation(
-                article.id, stock_code, stock_name, reasoning,
-                llm_model=self.claude.get_model_name(),
-                llm_version=self.claude.get_model_version()
-            )
+            if source_type == 'news':
+                rec_id = self.repos.recommendation_repo.save_recommendation(
+                    stock_code, stock_name, reasoning,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    article_id=source_obj.id,
+                    source_type='news'
+                )
+            else:  # disclosure
+                rec_id = self.repos.recommendation_repo.save_recommendation(
+                    stock_code, stock_name, reasoning,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    disclosure_id=source_obj.id,
+                    source_type='disclosure'
+                )
 
             # 2. KIS API로 주가 데이터 조회
             try:
@@ -361,17 +376,32 @@ class AnalyzerOrchestrator:
             )
 
             # 5. 분석 결과 저장
-            analysis_id = self.repos.analysis_repo.save_analysis(
-                article.id,
-                rec_id,
-                stock_code,
-                probability,
-                pred_reasoning,
-                target_price,
-                stop_loss,
-                llm_model=self.claude.get_model_name(),
-                llm_version=self.claude.get_model_version()
-            )
+            if source_type == 'news':
+                analysis_id = self.repos.analysis_repo.save_analysis(
+                    rec_id,
+                    stock_code,
+                    probability,
+                    pred_reasoning,
+                    target_price,
+                    stop_loss,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    article_id=source_obj.id,
+                    source_type='news'
+                )
+            else:  # disclosure
+                analysis_id = self.repos.analysis_repo.save_analysis(
+                    rec_id,
+                    stock_code,
+                    probability,
+                    pred_reasoning,
+                    target_price,
+                    stop_loss,
+                    llm_model=self.claude.get_model_name(),
+                    llm_version=self.claude.get_model_version(),
+                    disclosure_id=source_obj.id,
+                    source_type='disclosure'
+                )
 
             # 6. threshold 이상이면 holdings에 추가
             will_buy = probability >= self.settings.ANALYSIS_THRESHOLD_PERCENT
@@ -384,7 +414,8 @@ class AnalyzerOrchestrator:
                     target_price,
                     stop_loss,
                     llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version()
+                    llm_version=self.claude.get_model_version(),
+                    source_type=source_type
                 )
                 logger.info(
                     f"✓ Added {stock_name}({stock_code}) to holdings "

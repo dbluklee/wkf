@@ -176,7 +176,8 @@ class OpenAIService(BaseLLMService):
         report_name: str,
         rcept_date: str,
         price_history: List[Dict],
-        intraday_prices: List[Dict]
+        intraday_prices: List[Dict],
+        document_content: str = None
     ) -> Dict:
         """
         공시 데이터와 주가 데이터를 종합하여 매수 여부 판단
@@ -188,6 +189,7 @@ class OpenAIService(BaseLLMService):
             rcept_date: 접수일자 (YYYYMMDD)
             price_history: 직전 5일 일봉 데이터
             intraday_prices: 당일 분봉 데이터
+            document_content: 공시 상세 내용 (optional)
 
         Returns:
             {"stock_code": str, "probability": int, "reasoning": str, "target_price": int, "stop_loss": int}
@@ -197,6 +199,13 @@ class OpenAIService(BaseLLMService):
 
         # 접수일자 포맷팅 (YYYYMMDD -> YYYY-MM-DD)
         formatted_date = f"{rcept_date[:4]}-{rcept_date[4:6]}-{rcept_date[6:8]}"
+
+        # 공시 내용 포맷팅
+        content_section = ""
+        if document_content:
+            content_section = f"\n- 공시 상세 내용:\n{document_content}\n"
+        else:
+            content_section = "\n(공시 상세 내용 없음 - 제목만으로 판단)\n"
 
         system_message = """당신은 한국 증권 시장 전문 애널리스트입니다.
 기업 공시와 주가 데이터를 종합 분석하여 단기(1-3일) 주가 상승 확률을 예측하고 매수 여부를 판단하세요.
@@ -225,8 +234,7 @@ class OpenAIService(BaseLLMService):
 - 회사명: {corp_name}
 - 종목코드: {stock_code}
 - 공시명: {report_name}
-- 공시일자: {formatted_date}
-
+- 공시일자: {formatted_date}{content_section}
 주가 데이터:
 {price_summary}
 

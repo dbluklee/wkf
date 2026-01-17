@@ -73,6 +73,43 @@ class OpenDartScraper:
             logger.info(f"  - Duplicates: {duplicate_count}")
             logger.info(f"  - Errors: {error_count}")
 
+            # 새로 저장된 공시에 대해 상세 내용 다운로드
+            if new_disclosures:
+                logger.info(f"Fetching document content for {len(new_disclosures)} new disclosures...")
+                document_success = 0
+                document_fail = 0
+
+                for disclosure in new_disclosures:
+                    try:
+                        rcept_no = disclosure.get("rcept_no")
+                        if not rcept_no:
+                            logger.warning(f"rcept_no not found for disclosure ID {disclosure['id']}")
+                            document_fail += 1
+                            continue
+
+                        # 공시 문서 다운로드 및 파싱
+                        document_content = self.opendart.fetch_disclosure_document(rcept_no)
+
+                        if document_content:
+                            # 데이터베이스 업데이트
+                            success = self.disclosure_repo.update_document_content(
+                                disclosure["id"],
+                                document_content
+                            )
+                            if success:
+                                document_success += 1
+                                logger.info(f"Document content saved for {disclosure['corp_name']} ({rcept_no})")
+                            else:
+                                document_fail += 1
+                        else:
+                            document_fail += 1
+
+                    except Exception as e:
+                        logger.error(f"Failed to fetch document for disclosure ID {disclosure['id']}: {e}")
+                        document_fail += 1
+
+                logger.info(f"Document fetching completed: {document_success} success, {document_fail} failed")
+
             # 새로 저장된 공시에 대해 텔레그램 알림 전송
             if self.telegram and new_disclosures:
                 for disclosure in new_disclosures:

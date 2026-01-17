@@ -7,7 +7,7 @@ import threading
 from config.settings import AnalyzerSettings
 from database.connection import AnalyzerDatabaseManager
 from database.repositories import Repositories
-from services.claude_service import ClaudeService
+from services.gemini_service import GeminiService
 from services.kis_service import KISService
 from services.trade_executor import TradeExecutor
 from services.analyzer_orchestrator import AnalyzerOrchestrator
@@ -41,7 +41,7 @@ def main():
         telegram_service = TelegramService(
             bot_token=settings.TELEGRAM_BOT_TOKEN,
             chat_id=settings.TELEGRAM_CHAT_ID,
-            llm_name="claude"
+            llm_name="gemini"
         )
 
         # 3. 데이터베이스 연결
@@ -65,8 +65,8 @@ def main():
 
         # 6. 서비스 초기화
         logger.info("Initializing services...")
-        logger.info("- Claude API service (Anthropic)")
-        claude_service = ClaudeService(settings)
+        logger.info("- Gemini API service (Google)")
+        gemini_service = GeminiService(settings)
 
         logger.info("- KIS API service (Korea Investment & Securities)")
         kis_service = KISService(settings)
@@ -74,7 +74,7 @@ def main():
         logger.info("- Analyzer orchestrator")
         orchestrator = AnalyzerOrchestrator(
             settings,
-            claude_service,
+            gemini_service,
             kis_service,
             repos,
             telegram_service

@@ -6,7 +6,6 @@ import time
 from typing import Dict
 
 from config.settings import AnalyzerSettings
-from services.claude_service import ClaudeService
 from services.kis_service import KISService
 from wkf_analyzer.services.telegram_service import TelegramService
 from database.repositories import Repositories
@@ -21,13 +20,13 @@ class AnalyzerOrchestrator:
     def __init__(
         self,
         settings: AnalyzerSettings,
-        claude_service: ClaudeService,
+        llm_service,
         kis_service: KISService,
         repositories: Repositories,
         telegram_service: TelegramService = None
     ):
         self.settings = settings
-        self.claude = claude_service
+        self.llm_service = llm_service
         self.kis = kis_service
         self.repos = repositories
         self.telegram = telegram_service
@@ -61,7 +60,7 @@ class AnalyzerOrchestrator:
 
             # 2. Phase 1: Claude에서 종목 추천
             try:
-                recommendations = self.claude.recommend_stocks(
+                recommendations = self.llm_service.recommend_stocks(
                     article.title,
                     article.content
                 )
@@ -180,13 +179,17 @@ class AnalyzerOrchestrator:
 
             # 5. Claude로 공시 분석
             try:
-                analysis = self.claude.analyze_disclosure(
+                # document_content가 있으면 전달, 없으면 None
+                document_content = getattr(disclosure, 'document_content', None)
+
+                analysis = self.llm_service.analyze_disclosure(
                     corp_name,
                     stock_code,
                     disclosure.report_nm,
                     disclosure.rcept_dt,
                     daily_prices,
-                    intraday_prices
+                    intraday_prices,
+                    document_content
                 )
             except Exception as e:
                 logger.error(f"Claude disclosure analysis failed for {stock_code}: {e}")
@@ -212,8 +215,8 @@ class AnalyzerOrchestrator:
                 stock_code,
                 corp_name,
                 f"공시: {disclosure.report_nm}",
-                llm_model=self.claude.get_model_name(),
-                llm_version=self.claude.get_model_version(),
+                llm_model=self.llm_service.get_model_name(),
+                llm_version=self.llm_service.get_model_version(),
                 disclosure_id=disclosure_id,
                 source_type='disclosure'
             )
@@ -225,8 +228,8 @@ class AnalyzerOrchestrator:
                 reasoning,
                 target_price,
                 stop_loss,
-                llm_model=self.claude.get_model_name(),
-                llm_version=self.claude.get_model_version(),
+                llm_model=self.llm_service.get_model_name(),
+                llm_version=self.llm_service.get_model_version(),
                 disclosure_id=disclosure_id,
                 source_type='disclosure'
             )
@@ -241,8 +244,8 @@ class AnalyzerOrchestrator:
                     corp_name,
                     target_price,
                     stop_loss,
-                    llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version(),
+                    llm_model=self.llm_service.get_model_name(),
+                    llm_version=self.llm_service.get_model_version(),
                     source_type='disclosure'
                 )
                 logger.info(
@@ -310,16 +313,16 @@ class AnalyzerOrchestrator:
             if source_type == 'news':
                 rec_id = self.repos.recommendation_repo.save_recommendation(
                     stock_code, stock_name, reasoning,
-                    llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version(),
+                    llm_model=self.llm_service.get_model_name(),
+                    llm_version=self.llm_service.get_model_version(),
                     article_id=source_obj.id,
                     source_type='news'
                 )
             else:  # disclosure
                 rec_id = self.repos.recommendation_repo.save_recommendation(
                     stock_code, stock_name, reasoning,
-                    llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version(),
+                    llm_model=self.llm_service.get_model_name(),
+                    llm_version=self.llm_service.get_model_version(),
                     disclosure_id=source_obj.id,
                     source_type='disclosure'
                 )
@@ -353,7 +356,7 @@ class AnalyzerOrchestrator:
 
             # 4. Phase 2: Claude로 상승 확률 예측
             try:
-                prediction = self.claude.predict_price_increase(
+                prediction = self.llm_service.predict_price_increase(
                     article.title,
                     article.content,
                     stock_code,
@@ -384,8 +387,8 @@ class AnalyzerOrchestrator:
                     pred_reasoning,
                     target_price,
                     stop_loss,
-                    llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version(),
+                    llm_model=self.llm_service.get_model_name(),
+                    llm_version=self.llm_service.get_model_version(),
                     article_id=source_obj.id,
                     source_type='news'
                 )
@@ -397,8 +400,8 @@ class AnalyzerOrchestrator:
                     pred_reasoning,
                     target_price,
                     stop_loss,
-                    llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version(),
+                    llm_model=self.llm_service.get_model_name(),
+                    llm_version=self.llm_service.get_model_version(),
                     disclosure_id=source_obj.id,
                     source_type='disclosure'
                 )
@@ -413,8 +416,8 @@ class AnalyzerOrchestrator:
                     stock_name,
                     target_price,
                     stop_loss,
-                    llm_model=self.claude.get_model_name(),
-                    llm_version=self.claude.get_model_version(),
+                    llm_model=self.llm_service.get_model_name(),
+                    llm_version=self.llm_service.get_model_version(),
                     source_type=source_type
                 )
                 logger.info(

@@ -148,7 +148,9 @@ class AnalyzerOrchestrator:
             stock_code = disclosure.stock_code
             corp_name = disclosure.corp_name
 
-            # 3. KIS API로 주가 데이터 조회
+            # 3. KIS API로 주가 데이터 조회 (실패 시에도 분석 계속 진행)
+            daily_prices = []
+            intraday_prices = []
             try:
                 daily_prices = self.kis.fetch_daily_prices(
                     stock_code,
@@ -160,33 +162,29 @@ class AnalyzerOrchestrator:
                     f"Fetched prices for {stock_code}: "
                     f"{len(daily_prices)} daily, {len(intraday_prices)} intraday"
                 )
+
+                # 4. 주가 데이터 저장
+                if daily_prices:
+                    self.repos.price_repo.save_prices(stock_code, daily_prices, 'daily')
+                if intraday_prices:
+                    self.repos.price_repo.save_prices(stock_code, intraday_prices, 'intraday')
             except Exception as e:
-                logger.error(f"Failed to fetch prices for {stock_code}: {e}")
-                self.repos.log_repo.log_analysis(
-                    None, 'failed', 'price_fetch',
-                    str(e), time.time() - start_time
-                )
-                return
-
-            # 주가 데이터가 없으면 분석 불가
-            if not daily_prices:
-                logger.warning(f"No price data available for {stock_code}, skipping analysis")
-                return
-
-            # 4. 주가 데이터 저장
-            self.repos.price_repo.save_prices(stock_code, daily_prices, 'daily')
-            if intraday_prices:
-                self.repos.price_repo.save_prices(stock_code, intraday_prices, 'intraday')
+                logger.warning(f"Failed to fetch prices for {stock_code}: {e}")
+                logger.info(f"Continuing analysis without price data for {stock_code}")
 
             # 5. Claude로 공시 분석
             try:
+                # document_content가 있으면 전달, 없으면 None
+                document_content = getattr(disclosure, 'document_content', None)
+
                 analysis = self.claude.analyze_disclosure(
                     corp_name,
                     stock_code,
                     disclosure.report_nm,
                     disclosure.rcept_dt,
                     daily_prices,
-                    intraday_prices
+                    intraday_prices,
+                    document_content
                 )
             except Exception as e:
                 logger.error(f"Claude disclosure analysis failed for {stock_code}: {e}")

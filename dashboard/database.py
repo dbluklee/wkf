@@ -27,44 +27,50 @@ class DatabaseManager:
     def get_disclosures_by_date(
         self, start_date: Optional[date] = None, end_date: Optional[date] = None
     ) -> List[Dict[str, Any]]:
-        """날짜별 뉴스 기사 조회"""
+        """날짜별 공시 조회"""
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
                     SELECT
                         id,
-                        article_id,
-                        title,
-                        content,
-                        url,
-                        published_at,
+                        rcept_no,
+                        corp_code,
+                        corp_name,
+                        stock_code,
+                        report_nm,
+                        rcept_dt,
+                        flr_nm,
+                        rm,
                         scraped_at
-                    FROM news_articles
-                    WHERE status = 'active'
+                    FROM disclosures
                 """
                 params = []
+                conditions = []
 
                 if start_date:
-                    query += " AND DATE(scraped_at) >= %s"
+                    conditions.append("DATE(scraped_at) >= %s")
                     params.append(start_date)
 
                 if end_date:
-                    query += " AND DATE(scraped_at) <= %s"
+                    conditions.append("DATE(scraped_at) <= %s")
                     params.append(end_date)
+
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
 
                 query += " ORDER BY scraped_at DESC, id DESC LIMIT 100"
 
                 cur.execute(query, params)
                 return cur.fetchall()
 
-    def get_analysis_results(self, article_id: int) -> List[Dict[str, Any]]:
-        """특정 기사의 LLM 분석 결과 조회"""
+    def get_analysis_results(self, disclosure_id: int) -> List[Dict[str, Any]]:
+        """특정 공시의 LLM 분석 결과 조회"""
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
                     SELECT
                         sar.id,
-                        sar.article_id,
+                        sar.disclosure_id,
                         sar.stock_code,
                         sar.probability,
                         sar.reasoning,
@@ -76,30 +82,30 @@ class DatabaseManager:
                         sr.reasoning as recommendation_reasoning
                     FROM stock_analysis_results sar
                     LEFT JOIN stock_recommendations sr ON sar.recommendation_id = sr.id
-                    WHERE sar.article_id = %s
+                    WHERE sar.disclosure_id = %s
                     ORDER BY sar.probability DESC, sar.llm_model
                 """
-                cur.execute(query, [article_id])
+                cur.execute(query, [disclosure_id])
                 return cur.fetchall()
 
-    def get_stock_recommendations(self, article_id: int) -> List[Dict[str, Any]]:
-        """특정 기사의 종목 추천 조회"""
+    def get_stock_recommendations(self, disclosure_id: int) -> List[Dict[str, Any]]:
+        """특정 공시의 종목 추천 조회"""
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
                     SELECT
                         id,
-                        article_id,
+                        disclosure_id,
                         stock_code,
                         stock_name,
                         reasoning,
                         llm_model,
                         recommended_at
                     FROM stock_recommendations
-                    WHERE article_id = %s
+                    WHERE disclosure_id = %s
                     ORDER BY llm_model, recommended_at
                 """
-                cur.execute(query, [article_id])
+                cur.execute(query, [disclosure_id])
                 return cur.fetchall()
 
     def get_holdings_by_analysis(self, analysis_id: int) -> Optional[Dict[str, Any]]:
@@ -150,17 +156,17 @@ class DatabaseManager:
         """최근 통계 정보"""
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # 총 기사 수
-                cur.execute("SELECT COUNT(*) as total FROM news_articles WHERE status = 'active'")
-                total_articles = cur.fetchone()["total"]
+                # 총 공시 수
+                cur.execute("SELECT COUNT(*) as total FROM disclosures")
+                total_disclosures = cur.fetchone()["total"]
 
-                # 오늘 기사 수
+                # 오늘 공시 수
                 today = datetime.now().date()
                 cur.execute(
-                    "SELECT COUNT(*) as today FROM news_articles WHERE DATE(scraped_at) = %s AND status = 'active'",
+                    "SELECT COUNT(*) as today FROM disclosures WHERE DATE(scraped_at) = %s",
                     [today],
                 )
-                today_articles = cur.fetchone()["today"]
+                today_disclosures = cur.fetchone()["today"]
 
                 # 총 분석 수
                 cur.execute("SELECT COUNT(*) as total FROM stock_analysis_results")
@@ -173,8 +179,8 @@ class DatabaseManager:
                 active_trades = cur.fetchone()["active"]
 
                 return {
-                    "total_disclosures": total_articles,
-                    "today_disclosures": today_articles,
+                    "total_disclosures": total_disclosures,
+                    "today_disclosures": today_disclosures,
                     "total_analyses": total_analyses,
                     "active_trades": active_trades,
                 }

@@ -96,7 +96,23 @@ class ClaudeService(BaseLLMService):
             if response_text.endswith("```"):
                 response_text = response_text[:-3]
 
-            result = json.loads(response_text.strip())
+            # JSON 객체만 추출 (추가 텍스트 제거)
+            response_text = response_text.strip()
+            # 첫 번째 완전한 JSON 객체 ({...}) 찾기
+            first_brace = response_text.find('{')
+            if first_brace != -1:
+                # 중괄호 카운터로 완전한 JSON 객체 끝 찾기
+                brace_count = 0
+                for i in range(first_brace, len(response_text)):
+                    if response_text[i] == '{':
+                        brace_count += 1
+                    elif response_text[i] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            response_text = response_text[first_brace:i+1]
+                            break
+
+            result = json.loads(response_text)
             recommendations = result.get('recommended_stocks', [])
 
             logger.info(f"[Claude] Recommended {len(recommendations)} stocks")
@@ -191,7 +207,23 @@ class ClaudeService(BaseLLMService):
             if response_text.endswith("```"):
                 response_text = response_text[:-3]
 
-            result = json.loads(response_text.strip())
+            # JSON 객체만 추출 (추가 텍스트 제거)
+            response_text = response_text.strip()
+            # 첫 번째 완전한 JSON 객체 ({...}) 찾기
+            first_brace = response_text.find('{')
+            if first_brace != -1:
+                # 중괄호 카운터로 완전한 JSON 객체 끝 찾기
+                brace_count = 0
+                for i in range(first_brace, len(response_text)):
+                    if response_text[i] == '{':
+                        brace_count += 1
+                    elif response_text[i] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            response_text = response_text[first_brace:i+1]
+                            break
+
+            result = json.loads(response_text)
 
             logger.info(f"[Claude] Predicted {result.get('probability')}% for {stock_name}")
             return result
@@ -216,7 +248,8 @@ class ClaudeService(BaseLLMService):
         report_name: str,
         rcept_date: str,
         price_history: List[Dict],
-        intraday_prices: List[Dict]
+        intraday_prices: List[Dict],
+        document_content: str = None
     ) -> Dict:
         """
         공시 데이터와 주가 데이터를 종합하여 매수 여부 판단
@@ -228,6 +261,7 @@ class ClaudeService(BaseLLMService):
             rcept_date: 접수일자 (YYYYMMDD)
             price_history: 직전 5일 일봉 데이터
             intraday_prices: 당일 분봉 데이터
+            document_content: 공시 상세 내용 (optional)
 
         Returns:
             {"stock_code": str, "probability": int, "reasoning": str, "target_price": int, "stop_loss": int}
@@ -261,12 +295,18 @@ class ClaudeService(BaseLLMService):
         # 접수일자 포맷팅 (YYYYMMDD -> YYYY-MM-DD)
         formatted_date = f"{rcept_date[:4]}-{rcept_date[4:6]}-{rcept_date[6:8]}"
 
+        # 공시 내용 포맷팅
+        content_section = ""
+        if document_content:
+            content_section = f"\n- 공시 상세 내용:\n{document_content}\n"
+        else:
+            content_section = "\n(공시 상세 내용 없음 - 제목만으로 판단)\n"
+
         user_prompt = f"""공시 정보:
 - 회사명: {corp_name}
 - 종목코드: {stock_code}
 - 공시명: {report_name}
-- 공시일자: {formatted_date}
-
+- 공시일자: {formatted_date}{content_section}
 주가 데이터:
 {price_summary}
 
@@ -294,7 +334,23 @@ class ClaudeService(BaseLLMService):
             if response_text.endswith("```"):
                 response_text = response_text[:-3]
 
-            result = json.loads(response_text.strip())
+            # JSON 객체만 추출 (추가 텍스트 제거)
+            response_text = response_text.strip()
+            # 첫 번째 완전한 JSON 객체 ({...}) 찾기
+            first_brace = response_text.find('{')
+            if first_brace != -1:
+                # 중괄호 카운터로 완전한 JSON 객체 끝 찾기
+                brace_count = 0
+                for i in range(first_brace, len(response_text)):
+                    if response_text[i] == '{':
+                        brace_count += 1
+                    elif response_text[i] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            response_text = response_text[first_brace:i+1]
+                            break
+
+            result = json.loads(response_text)
 
             logger.info(f"[Claude] Disclosure analysis: {result.get('probability')}% for {corp_name}")
             return result

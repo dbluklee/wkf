@@ -103,12 +103,12 @@
                         </div>
                     </div>
 
-                    {% if disclosure.rm %}
-                    <div class="disclosure-content">
-                        <strong>공시 내용:</strong>
-                        <p>{{ disclosure.rm[:500] }}{% if disclosure.rm|length > 500 %}...{% endif %}</p>
+                    <div class="disclosure-info">
+                        <strong>공시 유형:</strong> {{ disclosure.report_nm }}
+                        {% if disclosure.flr_nm %}
+                        <br><strong>신고인:</strong> {{ disclosure.flr_nm }}
+                        {% endif %}
                     </div>
-                    {% endif %}
 
                     <!-- 종목 추천 -->
                     {% if disclosure.recommendations %}

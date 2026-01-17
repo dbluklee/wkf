@@ -116,6 +116,7 @@ class DisclosureRepository:
                     # 새로 저장된 공시 정보 추가
                     new_disclosures.append({
                         "id": result,
+                        "rcept_no": disclosure.get("rcept_no"),
                         "corp_name": disclosure.get("corp_name"),
                         "stock_code": disclosure.get("stock_code", ""),
                         "report_nm": disclosure.get("report_nm"),
@@ -163,6 +164,38 @@ class DisclosureRepository:
         except Exception as e:
             logger.error(f"Failed to get latest rcept_dt: {e}")
             return None
+        finally:
+            cursor.close()
+
+    def update_document_content(self, disclosure_id: int, document_content: str) -> bool:
+        """
+        공시 상세 내용 업데이트
+
+        Args:
+            disclosure_id: 공시 ID
+            document_content: 공시 상세 내용
+
+        Returns:
+            성공 여부
+        """
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                UPDATE disclosures
+                SET document_content = %s
+                WHERE id = %s
+            """, (document_content, disclosure_id))
+
+            conn.commit()
+            logger.debug(f"Updated document content for disclosure ID {disclosure_id}: {len(document_content)} characters")
+            return True
+
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Failed to update document content for disclosure ID {disclosure_id}: {e}")
+            return False
         finally:
             cursor.close()
 

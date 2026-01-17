@@ -7,7 +7,7 @@ import threading
 from config.settings import AnalyzerSettings
 from database.connection import AnalyzerDatabaseManager
 from database.repositories import Repositories
-from services.gemini_service import GeminiService
+from services.claude_service import ClaudeService
 from services.kis_service import KISService
 from services.trade_executor import TradeExecutor
 from services.analyzer_orchestrator import AnalyzerOrchestrator
@@ -41,7 +41,7 @@ def main():
         telegram_service = TelegramService(
             bot_token=settings.TELEGRAM_BOT_TOKEN,
             chat_id=settings.TELEGRAM_CHAT_ID,
-            llm_name="gemini"
+            llm_name="claude"
         )
 
         # 3. 데이터베이스 연결
@@ -50,7 +50,7 @@ def main():
         db_manager.wait_for_db()
         logger.info("Database connection established")
 
-        # 3. 마이그레이션 실행
+        # 4. 마이그레이션 실행
         logger.info("Running database migrations...")
         try:
             db_manager.execute_migration('database/migrations/002_create_analyzer_tables.sql')
@@ -59,14 +59,14 @@ def main():
         except Exception as e:
             logger.warning(f"Migration warning (may already exist): {e}")
 
-        # 4. Repository 초기화
+        # 5. Repository 초기화
         logger.info("Initializing repositories...")
         repos = Repositories(db_manager)
 
-        # 5. 서비스 초기화
+        # 6. 서비스 초기화
         logger.info("Initializing services...")
-        logger.info("- Gemini API service (Google)")
-        gemini_service = GeminiService(settings)
+        logger.info("- Claude API service (Anthropic)")
+        claude_service = ClaudeService(settings)
 
         logger.info("- KIS API service (Korea Investment & Securities)")
         kis_service = KISService(settings)
@@ -74,7 +74,7 @@ def main():
         logger.info("- Analyzer orchestrator")
         orchestrator = AnalyzerOrchestrator(
             settings,
-            gemini_service,
+            claude_service,
             kis_service,
             repos,
             telegram_service
@@ -87,15 +87,24 @@ def main():
         # 7. 서비스 시작 알림
         telegram_service.notify_service_start()
 
-        # 8. 공시 리스너 시작
+        # 8. 소스 타입에 따라 리스너 시작
         logger.info("=" * 60)
         logger.info("Starting PostgreSQL LISTEN...")
-        logger.info("- Channel 'new_disclosure': Disclosures only")
-        logger.info("=" * 60)
+        logger.info(f"- Source type: {settings.SOURCE_TYPE}")
 
-        # 공시 리스너
-        disclosure_listener = DisclosureListener(db_manager, orchestrator.analyze_disclosure)
-        disclosure_listener.start_listening()
+        if settings.SOURCE_TYPE == 'news':
+            from listeners.article_listener import ArticleListener
+            logger.info("- Channel 'new_article': News articles")
+            logger.info("=" * 60)
+            article_listener = ArticleListener(db_manager, orchestrator.analyze_article)
+            article_listener.start_listening()
+        elif settings.SOURCE_TYPE == 'disclosure':
+            logger.info("- Channel 'new_disclosure': Disclosures")
+            logger.info("=" * 60)
+            disclosure_listener = DisclosureListener(db_manager, orchestrator.analyze_disclosure)
+            disclosure_listener.start_listening()
+        else:
+            raise ValueError(f"Invalid SOURCE_TYPE: {settings.SOURCE_TYPE}")
 
     except KeyboardInterrupt:
         logger.info("")

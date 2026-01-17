@@ -56,43 +56,48 @@ class RecommendationRepository:
 
     def save_recommendation(
         self,
-        article_id: int,
         stock_code: str,
         stock_name: str,
         reasoning: str,
         llm_model: str = None,
-        llm_version: str = None
+        llm_version: str = None,
+        article_id: int = None,
+        disclosure_id: int = None,
+        source_type: str = 'disclosure'
     ) -> int:
         """
         종목 추천 저장
 
         Args:
-            article_id: 기사 ID
             stock_code: 종목코드
             stock_name: 종목명
             reasoning: 추천 근거
             llm_model: LLM 모델명 ('claude', 'gemini', 'openai')
             llm_version: LLM 버전
+            article_id: 기사 ID (news 모드일 때)
+            disclosure_id: 공시 ID (disclosure 모드일 때)
+            source_type: 데이터 소스 ('news' 또는 'disclosure')
 
         Returns:
             저장된 recommendation ID
         """
+        if not article_id and not disclosure_id:
+            raise ValueError("Either article_id or disclosure_id must be provided")
+
         try:
             with self.db_manager.get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO stock_recommendations
-                        (article_id, stock_code, stock_name, reasoning, llm_model, llm_version)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (article_id, stock_code, llm_model) DO UPDATE
-                        SET reasoning = EXCLUDED.reasoning,
-                            llm_version = EXCLUDED.llm_version
+                        (article_id, disclosure_id, stock_code, stock_name, reasoning, llm_model, llm_version, source_type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (article_id, stock_code, stock_name, reasoning, llm_model, llm_version))
+                    """, (article_id, disclosure_id, stock_code, stock_name, reasoning, llm_model, llm_version, source_type))
 
                     result = cursor.fetchone()
                     rec_id = result[0]
-                    logger.info(f"Saved recommendation: {stock_name}({stock_code}) for article {article_id}")
+                    source_id = article_id if article_id else disclosure_id
+                    logger.info(f"Saved recommendation: {stock_name}({stock_code}) for {source_type} {source_id}")
                     return rec_id
         except Exception as e:
             logger.error(f"Failed to save recommendation: {e}")
@@ -186,7 +191,6 @@ class AnalysisRepository:
 
     def save_analysis(
         self,
-        article_id: int,
         recommendation_id: int,
         stock_code: str,
         probability: int,
@@ -194,13 +198,15 @@ class AnalysisRepository:
         target_price: Optional[int] = None,
         stop_loss: Optional[int] = None,
         llm_model: str = None,
-        llm_version: str = None
+        llm_version: str = None,
+        article_id: int = None,
+        disclosure_id: int = None,
+        source_type: str = 'disclosure'
     ) -> int:
         """
         분석 결과 저장
 
         Args:
-            article_id: 기사 ID
             recommendation_id: 추천 ID
             stock_code: 종목코드
             probability: 상승 확률 (0-100)
@@ -209,26 +215,33 @@ class AnalysisRepository:
             stop_loss: 손절가
             llm_model: LLM 모델명
             llm_version: LLM 버전
+            article_id: 기사 ID (news 모드일 때)
+            disclosure_id: 공시 ID (disclosure 모드일 때)
+            source_type: 데이터 소스 ('news' 또는 'disclosure')
 
         Returns:
             저장된 analysis ID
         """
+        if not article_id and not disclosure_id:
+            raise ValueError("Either article_id or disclosure_id must be provided")
+
         try:
             with self.db_manager.get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO stock_analysis_results
-                        (article_id, recommendation_id, stock_code, probability, reasoning, target_price, stop_loss, llm_model, llm_version)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        (article_id, disclosure_id, recommendation_id, stock_code, probability, reasoning, target_price, stop_loss, llm_model, llm_version, source_type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (recommendation_id) DO UPDATE
                         SET probability = EXCLUDED.probability,
                             reasoning = EXCLUDED.reasoning,
                             target_price = EXCLUDED.target_price,
                             stop_loss = EXCLUDED.stop_loss,
                             llm_model = EXCLUDED.llm_model,
-                            llm_version = EXCLUDED.llm_version
+                            llm_version = EXCLUDED.llm_version,
+                            source_type = EXCLUDED.source_type
                         RETURNING id
-                    """, (article_id, recommendation_id, stock_code, probability, reasoning, target_price, stop_loss, llm_model, llm_version))
+                    """, (article_id, disclosure_id, recommendation_id, stock_code, probability, reasoning, target_price, stop_loss, llm_model, llm_version, source_type))
 
                     result = cursor.fetchone()
                     analysis_id = result[0]
@@ -253,7 +266,8 @@ class HoldingsRepository:
         target_price: Optional[int] = None,
         stop_loss: Optional[int] = None,
         llm_model: str = None,
-        llm_version: str = None
+        llm_version: str = None,
+        source_type: str = 'disclosure'
     ) -> int:
         """
         보유 종목 추가
@@ -266,6 +280,7 @@ class HoldingsRepository:
             stop_loss: 손절가
             llm_model: LLM 모델명
             llm_version: LLM 버전
+            source_type: 데이터 소스 ('news' 또는 'disclosure')
 
         Returns:
             저장된 holding ID
@@ -275,10 +290,10 @@ class HoldingsRepository:
                 with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO stock_holdings
-                        (analysis_id, stock_code, stock_name, target_price, stop_loss, status, llm_model, llm_version)
-                        VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s)
+                        (analysis_id, stock_code, stock_name, target_price, stop_loss, status, llm_model, llm_version, source_type)
+                        VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s, %s)
                         RETURNING id
-                    """, (analysis_id, stock_code, stock_name, target_price, stop_loss, llm_model, llm_version))
+                    """, (analysis_id, stock_code, stock_name, target_price, stop_loss, llm_model, llm_version, source_type))
 
                     result = cursor.fetchone()
                     holding_id = result[0]

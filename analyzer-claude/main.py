@@ -87,15 +87,24 @@ def main():
         # 7. 서비스 시작 알림
         telegram_service.notify_service_start()
 
-        # 8. 공시 리스너 시작
+        # 8. 소스 타입에 따라 리스너 시작
         logger.info("=" * 60)
         logger.info("Starting PostgreSQL LISTEN...")
-        logger.info("- Channel 'new_disclosure': Disclosures only")
-        logger.info("=" * 60)
+        logger.info(f"- Source type: {settings.SOURCE_TYPE}")
 
-        # 공시 리스너
-        disclosure_listener = DisclosureListener(db_manager, orchestrator.analyze_disclosure)
-        disclosure_listener.start_listening()
+        if settings.SOURCE_TYPE == 'news':
+            from listeners.article_listener import ArticleListener
+            logger.info("- Channel 'new_article': News articles")
+            logger.info("=" * 60)
+            article_listener = ArticleListener(db_manager, orchestrator.analyze_article)
+            article_listener.start_listening()
+        elif settings.SOURCE_TYPE == 'disclosure':
+            logger.info("- Channel 'new_disclosure': Disclosures")
+            logger.info("=" * 60)
+            disclosure_listener = DisclosureListener(db_manager, orchestrator.analyze_disclosure)
+            disclosure_listener.start_listening()
+        else:
+            raise ValueError(f"Invalid SOURCE_TYPE: {settings.SOURCE_TYPE}")
 
     except KeyboardInterrupt:
         logger.info("")

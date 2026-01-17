@@ -8,6 +8,7 @@
 - [Development History](#development-history)
 - [Local Development Setup](#local-development-setup)
 - [AWS Free Tier Deployment](#aws-free-tier-deployment)
+- [AWS Server Management](#aws-server-management)
 - [Database Schema](#database-schema)
 - [LLM Model Configuration](#llm-model-configuration)
 - [Trading Logic](#trading-logic)
@@ -540,6 +541,270 @@ services:
 ```
 
 **Total: ~960MB** (within 1GB limit with 2GB swap)
+
+---
+
+## AWS Server Management
+
+### 서버 접속 정보
+
+**SSH 키 경로:**
+```bash
+~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem
+```
+
+**서버 주소:**
+```bash
+ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com
+```
+
+**기본 접속 명령어:**
+```bash
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com
+```
+
+### 서비스 상태 확인
+
+**모든 컨테이너 상태 확인:**
+```bash
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose ps"
+```
+
+**특정 서비스 로그 확인:**
+```bash
+# Claude Analyzer 로그 (최근 50줄)
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose logs --tail=50 wkf-analyzer-claude"
+
+# Gemini Analyzer 로그
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose logs --tail=50 wkf-analyzer-gemini"
+
+# OpenAI Analyzer 로그
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose logs --tail=50 wkf-analyzer-openai"
+
+# Disclosure Scraper 로그
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose logs --tail=50 wkf-disclosure-scraper"
+
+# 모든 서비스 실시간 로그
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose logs -f"
+```
+
+**리소스 사용량 확인:**
+```bash
+# 컨테이너 리소스 사용량
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "docker stats --no-stream"
+
+# 디스크 사용량
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "df -h"
+
+# 메모리 사용량
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "free -h"
+```
+
+### 서비스 제어
+
+**모든 서비스 중지:**
+```bash
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose down"
+```
+
+**모든 서비스 시작:**
+```bash
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose up -d"
+```
+
+**모든 서비스 재시작:**
+```bash
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose restart"
+```
+
+**특정 서비스만 재시작:**
+```bash
+# Claude Analyzer만 재시작
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose restart wkf-analyzer-claude"
+
+# Disclosure Scraper만 재시작
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose restart wkf-disclosure-scraper"
+```
+
+### 코드 업데이트 및 배포
+
+**전체 업데이트 프로세스 (권장):**
+```bash
+# 1단계: 로컬에서 Git 상태 확인
+git status
+git log --oneline -5
+
+# 2단계: 변경사항 커밋 및 푸시
+git add -A
+git commit -m "변경사항 설명"
+git push origin main
+
+# 3단계: AWS 서버 업데이트 (원라이너)
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose down && git pull origin main && docker-compose build --no-cache && docker-compose up -d"
+```
+
+**단계별 업데이트 (디버깅용):**
+```bash
+# 1. 서비스 중지
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose down"
+
+# 2. 최신 코드 가져오기
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && git pull origin main"
+
+# 3. 이미지 재빌드
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose build --no-cache"
+
+# 4. 서비스 시작
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose up -d"
+
+# 5. 상태 확인
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose ps"
+```
+
+**특정 서비스만 재빌드:**
+```bash
+# Disclosure Scraper만 재빌드
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && git pull origin main && docker-compose build --no-cache wkf-disclosure-scraper && docker-compose up -d wkf-disclosure-scraper"
+```
+
+### 데이터베이스 접속
+
+**PostgreSQL 접속:**
+```bash
+# 서버 내부에서 접속
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "docker exec -it wkf-postgres psql -U wkf_user -d finance_news"
+```
+
+**로컬에서 원격 PostgreSQL 접속 (포트 포워딩):**
+```bash
+# 1. SSH 터널 생성 (별도 터미널)
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem -L 5433:localhost:5432 ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com
+
+# 2. 로컬 클라이언트로 접속 (다른 터미널)
+psql -h localhost -p 5433 -U wkf_user -d finance_news
+# 비밀번호는 .env 파일의 DB_PASSWORD
+```
+
+**유용한 SQL 쿼리:**
+```sql
+-- 최근 공시 10건
+SELECT id, corp_name, report_nm, rcept_dt
+FROM disclosures
+ORDER BY id DESC
+LIMIT 10;
+
+-- LLM별 분석 현황
+SELECT
+    llm_model,
+    COUNT(*) as total_analyses,
+    AVG(probability) as avg_probability
+FROM stock_analysis_results
+GROUP BY llm_model;
+
+-- 현재 보유 포지션
+SELECT
+    llm_model,
+    stock_code,
+    stock_name,
+    status,
+    quantity,
+    average_price
+FROM stock_holdings
+WHERE status = 'bought'
+ORDER BY added_at DESC;
+
+-- LLM별 성과
+SELECT
+    llm_model,
+    COUNT(*) as total_trades,
+    SUM(CASE WHEN roi_percent > 0 THEN 1 ELSE 0 END) as wins,
+    ROUND(AVG(roi_percent), 2) as avg_roi,
+    SUM(profit_loss) as total_profit
+FROM llm_performance_tracking
+GROUP BY llm_model
+ORDER BY avg_roi DESC;
+```
+
+### 문제 해결 (Troubleshooting)
+
+**서비스가 반복적으로 재시작되는 경우:**
+```bash
+# 1. 로그 확인
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose logs --tail=100 [서비스명]"
+
+# 2. 일반적인 원인:
+# - 환경 변수 누락 (.env 파일 확인)
+# - API 키 오류
+# - 데이터베이스 연결 실패
+# - 메모리 부족
+
+# 3. 환경 변수 확인
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && cat .env | grep -v PASSWORD | grep -v KEY | grep -v SECRET"
+```
+
+**디스크 공간 부족:**
+```bash
+# Docker 이미지 정리
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "docker system prune -a -f"
+
+# 로그 파일 정리
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && find logs -name '*.log' -mtime +7 -delete"
+```
+
+**메모리 부족:**
+```bash
+# Swap 메모리 확인
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "swapon --show"
+
+# Swap 메모리 재생성 (없는 경우)
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+```
+
+**데이터베이스 마이그레이션 실패:**
+```bash
+# 마이그레이션 수동 실행
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "docker exec -it wkf-postgres psql -U wkf_user -d finance_news -f /path/to/migration.sql"
+```
+
+**전체 시스템 재설정 (주의!):**
+```bash
+# 경고: 모든 데이터가 삭제됩니다!
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose down -v && docker system prune -a -f && rm -rf data/postgres/* && docker-compose up -d"
+```
+
+### 백업 및 복원
+
+**데이터베이스 백업:**
+```bash
+# 백업 생성
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "docker exec wkf-postgres pg_dump -U wkf_user finance_news > ~/backup_\$(date +%Y%m%d_%H%M%S).sql"
+
+# 로컬로 다운로드
+scp -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com:~/backup_*.sql ~/Downloads/
+```
+
+**데이터베이스 복원:**
+```bash
+# 백업 파일 업로드
+scp -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ~/Downloads/backup_20250117.sql ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com:~/
+
+# 복원 실행
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "docker exec -i wkf-postgres psql -U wkf_user finance_news < ~/backup_20250117.sql"
+```
+
+### 서버 모니터링
+
+**실시간 모니터링 스크립트:**
+```bash
+# watch를 사용한 실시간 모니터링 (로컬에서 실행)
+watch -n 5 'ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && docker-compose ps"'
+```
+
+**자동화된 헬스 체크:**
+```bash
+# 모든 서비스 상태를 한 번에 확인
+ssh -i ~/Documents/Private/Security/wk-aws-forwkf/wk-aws.pem ubuntu@ec2-52-65-220-245.ap-southeast-2.compute.amazonaws.com "cd ~/wkf && echo '=== Docker Compose Status ===' && docker-compose ps && echo -e '\n=== Disk Usage ===' && df -h / && echo -e '\n=== Memory Usage ===' && free -h && echo -e '\n=== Recent Errors ===' && docker-compose logs --tail=20 | grep -i error"
+```
 
 ---
 

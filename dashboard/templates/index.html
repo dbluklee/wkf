@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WKF Finance Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 WKF Finance Dashboard</h1>
+            <p class="subtitle">AI 기반 공시 분석 및 자동 매매 시스템</p>
+        </header>
+
+        <!-- 통계 카드 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">총 공시 수</div>
+                <div class="stat-value">{{ stats.total_disclosures }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">오늘 공시</div>
+                <div class="stat-value">{{ stats.today_disclosures }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">총 분석 수</div>
+                <div class="stat-value">{{ stats.total_analyses }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">진행 중인 거래</div>
+                <div class="stat-value">{{ stats.active_trades }}</div>
+            </div>
+        </div>
+
+        <!-- LLM 성과 요약 -->
+        {% if performance %}
+        <section class="performance-section">
+            <h2>📊 LLM 모델별 성과</h2>
+            <table class="performance-table">
+                <thead>
+                    <tr>
+                        <th>모델</th>
+                        <th>총 거래</th>
+                        <th>승</th>
+                        <th>패</th>
+                        <th>승률</th>
+                        <th>평균 ROI</th>
+                        <th>총 수익</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for perf in performance %}
+                    <tr>
+                        <td><span class="llm-badge llm-{{ perf.llm_model }}">{{ perf.llm_model }}</span></td>
+                        <td>{{ perf.total_trades }}</td>
+                        <td class="text-success">{{ perf.wins }}</td>
+                        <td class="text-danger">{{ perf.losses }}</td>
+                        <td>{{ perf.win_rate }}%</td>
+                        <td class="{% if perf.avg_roi > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ perf.avg_roi }}%
+                        </td>
+                        <td class="{% if perf.total_profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "{:,}".format(perf.total_profit) }} 원
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
+        <!-- 날짜 필터 -->
+        <section class="filter-section">
+            <h2>📅 공시 조회</h2>
+            <form method="get" class="date-filter">
+                <label>
+                    시작 날짜:
+                    <input type="date" name="start_date" value="{{ start_date }}" required>
+                </label>
+                <label>
+                    종료 날짜:
+                    <input type="date" name="end_date" value="{{ end_date }}" required>
+                </label>
+                <button type="submit">조회</button>
+            </form>
+        </section>
+
+        <!-- 공시 목록 -->
+        <section class="disclosures-section">
+            <h2>📄 공시 목록 ({{ disclosures|length }}건)</h2>
+
+            {% if disclosures %}
+                {% for disclosure in disclosures %}
+                <div class="disclosure-card">
+                    <div class="disclosure-header">
+                        <div class="disclosure-title">
+                            <h3>{{ disclosure.corp_name }} ({{ disclosure.stock_code or 'N/A' }})</h3>
+                            <span class="disclosure-date">{{ disclosure.rcept_dt[:4] }}-{{ disclosure.rcept_dt[4:6] }}-{{ disclosure.rcept_dt[6:] }}</span>
+                        </div>
+                        <div class="disclosure-meta">
+                            <span class="badge">{{ disclosure.report_nm }}</span>
+                        </div>
+                    </div>
+
+                    {% if disclosure.rm %}
+                    <div class="disclosure-content">
+                        <strong>공시 내용:</strong>
+                        <p>{{ disclosure.rm[:500] }}{% if disclosure.rm|length > 500 %}...{% endif %}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- 종목 추천 -->
+                    {% if disclosure.recommendations %}
+                    <div class="recommendations-section">
+                        <h4>🎯 LLM 추천 종목</h4>
+                        <div class="recommendations-grid">
+                            {% for rec in disclosure.recommendations %}
+                            <div class="recommendation-card">
+                                <div class="rec-header">
+                                    <span class="llm-badge llm-{{ rec.llm_model }}">{{ rec.llm_model }}</span>
+                                    <span class="stock-info">{{ rec.stock_name }} ({{ rec.stock_code }})</span>
+                                </div>
+                                {% if rec.reasoning %}
+                                <p class="rec-reasoning">{{ rec.reasoning[:200] }}{% if rec.reasoning|length > 200 %}...{% endif %}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- LLM 분석 결과 -->
+                    {% if disclosure.analyses %}
+                    <div class="analyses-section">
+                        <h4>🤖 LLM 분석 결과</h4>
+                        <div class="analyses-grid">
+                            {% for analysis in disclosure.analyses %}
+                            <div class="analysis-card">
+                                <div class="analysis-header">
+                                    <span class="llm-badge llm-{{ analysis.llm_model }}">{{ analysis.llm_model }}</span>
+                                    <span class="stock-info">{{ analysis.stock_name or analysis.stock_code }}</span>
+                                </div>
+
+                                <div class="analysis-probability">
+                                    <div class="prob-label">확률</div>
+                                    <div class="prob-value prob-{{ 'high' if analysis.probability >= 70 else 'medium' if analysis.probability >= 50 else 'low' }}">
+                                        {{ analysis.probability }}%
+                                    </div>
+                                </div>
+
+                                <div class="analysis-prices">
+                                    {% if analysis.target_price %}
+                                    <div class="price-item">
+                                        <span class="price-label">목표가:</span>
+                                        <span class="price-value">{{ "{:,}".format(analysis.target_price) }}원</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if analysis.stop_loss %}
+                                    <div class="price-item">
+                                        <span class="price-label">손절가:</span>
+                                        <span class="price-value">{{ "{:,}".format(analysis.stop_loss) }}원</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                {% if analysis.reasoning %}
+                                <div class="analysis-reasoning">
+                                    <strong>분석 근거:</strong>
+                                    <p>{{ analysis.reasoning[:300] }}{% if analysis.reasoning|length > 300 %}...{% endif %}</p>
+                                </div>
+                                {% endif %}
+
+                                <!-- 거래 정보 -->
+                                {% if analysis.holding %}
+                                <div class="holding-info">
+                                    <div class="holding-status status-{{ analysis.holding.status }}">
+                                        {{ {'pending': '대기중', 'bought': '보유중', 'sold': '매도완료'}[analysis.holding.status] }}
+                                    </div>
+                                    {% if analysis.holding.quantity %}
+                                    <div class="holding-details">
+                                        <span>수량: {{ analysis.holding.quantity }}</span>
+                                        {% if analysis.holding.average_price %}
+                                        <span>평균가: {{ "{:,}".format(analysis.holding.average_price) }}원</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>선택한 날짜 범위에 공시가 없습니다.</p>
+                </div>
+            {% endif %}
+        </section>
+
+        <footer>
+            <p>🤖 Generated with Claude Code | Last updated: {{ stats.total_disclosures }} disclosures</p>
+        </footer>
+    </div>
+</body>
+</html>

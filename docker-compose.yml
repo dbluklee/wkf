@@ -285,6 +285,35 @@ services:
       - wkf-network
     restart: always
 
+  wkf-dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: wkf-dashboard
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    environment:
+      # Database
+      DB_HOST: wkf-postgres
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # Dashboard
+      DASHBOARD_HOST: 0.0.0.0
+      DASHBOARD_PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      wkf-postgres:
+        condition: service_healthy
+    networks:
+      - wkf-network
+    restart: always
+
 networks:
   wkf-network:
     name: wkf-network

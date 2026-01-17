@@ -139,9 +139,9 @@ class DatabaseManager:
                         COUNT(*) as total_trades,
                         SUM(CASE WHEN roi_percent > 0 THEN 1 ELSE 0 END) as wins,
                         SUM(CASE WHEN roi_percent <= 0 THEN 1 ELSE 0 END) as losses,
-                        ROUND(AVG(roi_percent), 2) as avg_roi,
+                        ROUND(AVG(roi_percent)::numeric, 2) as avg_roi,
                         SUM(profit_loss) as total_profit,
-                        ROUND(100.0 * SUM(CASE WHEN roi_percent > 0 THEN 1 ELSE 0 END) / COUNT(*), 1) as win_rate
+                        ROUND((100.0 * SUM(CASE WHEN roi_percent > 0 THEN 1 ELSE 0 END) / COUNT(*))::numeric, 1) as win_rate
                     FROM llm_performance_tracking
                     GROUP BY llm_model
                     ORDER BY avg_roi DESC

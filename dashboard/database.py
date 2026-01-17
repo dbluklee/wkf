@@ -41,8 +41,7 @@ class DatabaseManager:
                         rcept_dt,
                         flr_nm,
                         rm,
-                        scraped_at,
-                        created_at
+                        scraped_at
                     FROM disclosures
                     WHERE 1=1
                 """
